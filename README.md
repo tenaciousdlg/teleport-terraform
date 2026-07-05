@@ -29,7 +29,8 @@ eval $(tctl terraform env)
 
 export TF_VAR_proxy_address=myorg.teleport.sh
 export TF_VAR_user=you@company.com
-export TF_VAR_teleport_version=18.7.1
+# Pin to a specific version, or pull the running version from your proxy:
+export TF_VAR_teleport_version=$(curl -s "https://myorg.teleport.sh/webapi/ping" | jq -r .server_version)
 
 cd data-plane/server-access-ssh-getting-started   # or any template
 terraform init && terraform apply

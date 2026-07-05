@@ -8,7 +8,7 @@ hostnamectl set-hostname "${name}"
 dnf install -y audit nginx
 systemctl enable --now auditd
 
-curl "https://${proxy_address}/scripts/install.sh" | bash -s "${teleport_version}" enterprise
+curl "https://${proxy_address}/scripts/install.sh" | bash
 echo "${token}" > /tmp/token
 
 cat<<EOF >/etc/teleport.yaml
@@ -23,7 +23,7 @@ teleport:
     format:
       output: text
 ssh_service:
-  enabled: "yes"
+  enabled: true
   enhanced_recording:
     # BPF/eBPF enhanced session recording — captures commands, arguments, and
     # network connections. Requires kernel 5.8+ (AL2023 ships 6.x).
@@ -45,9 +45,9 @@ ssh_service:
       command: ["/bin/sh", "-c", "df -hTP / | awk '{print \$6}' | egrep '^[0-9][0-9]'"]
       period: "2m0s"
 proxy_service:
-  enabled: "no"
+  enabled: false
 auth_service:
-  enabled: "no"
+  enabled: false
 EOF
 
 systemctl enable teleport
