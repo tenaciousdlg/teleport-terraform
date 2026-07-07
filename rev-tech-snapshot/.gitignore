@@ -1,0 +1,20 @@
+# Terraform local state and cache — never commit these
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Local variable overrides — keep credentials and personal values out of git
+*.tfvars
+*.tfvars.json
+
+# CLI configuration traces
+terraform.rc
+.terraformrc
+
+# Teleport license files
+*license.pem
