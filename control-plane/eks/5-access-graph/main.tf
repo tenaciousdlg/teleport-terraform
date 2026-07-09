@@ -132,7 +132,7 @@ resource "helm_release" "access_graph" {
   namespace  = kubernetes_namespace.access_graph.metadata[0].name
   version    = local.chart_version
   wait       = true
-  timeout    = 300
+  timeout    = 600 # IAC init (Glue/SQS/S3 wiring) is heavier than plain TAG
 
   values = [yamlencode({
     replicaCount = 1
