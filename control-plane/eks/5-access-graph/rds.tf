@@ -61,6 +61,12 @@ resource "aws_db_instance" "access_graph" {
   skip_final_snapshot    = true
   deletion_protection    = false
 
+  # Allow IAM database authentication alongside password auth. Additive —
+  # TAG continues to connect by password (the k8s secret URI); this just
+  # makes IAM auth available for a future migration and is the better
+  # posture. Applies dynamically, no reboot.
+  iam_database_authentication_enabled = true
+
   tags = {
     env  = var.env
     team = var.team
