@@ -131,6 +131,23 @@ resource "helm_release" "access_graph" {
   values = [yamlencode({
     replicaCount = 1
 
+    # Guarantee TAG enough memory that its initial graph import doesn't
+    # self-starve when co-scheduled with the proxy on a t3.small node
+    # (the "Launching Identity Security…" hang, 2026-07-09). The 512Mi
+    # request fits the free headroom on the existing t3.small nodes, so
+    # the scheduler places it without adding a node (no extra cost); the
+    # 1Gi limit gives the import room to burst. No CPU limit — CPU limits
+    # cause throttling; the request alone is enough for scheduling.
+    resources = {
+      requests = {
+        cpu    = "250m"
+        memory = "512Mi"
+      }
+      limits = {
+        memory = "1Gi"
+      }
+    }
+
     postgres = {
       secretName = kubernetes_secret.access_graph_postgres.metadata[0].name
     }
