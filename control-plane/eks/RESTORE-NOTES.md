@@ -43,6 +43,23 @@ export TF_VAR_plugin_chart_version=18.7.1    # PIN — tf default "" means lates
 # the k8s secret teleport-access-graph-postgres (and in state):
 #   kubectl get secret teleport-access-graph-postgres -n teleport-access-graph -o jsonpath='{.data.uri}' | base64 -d
 
+# 5-access-graph — TAG uses PASSWORDLESS RDS IAM auth (2026-07-09)
+# TAG assumes IRSA role teleport-access-graph-rds-dev and connects to RDS with
+# short-lived IAM tokens (no stored password). Pieces: iam.tf (IRSA role +
+# rds-db:connect policy), the DB user holds rds_iam (GRANT rds_iam TO
+# access_graph — run once from an in-cluster psql pod), helm values set
+# postgres.aws.enabled=true + a passwordless connectionString + the SA
+# eks.amazonaws.com/role-arn annotation.
+#   - The kubernetes_secret teleport-access-graph-postgres (password URI) is now
+#     UNUSED by TAG (kept as fallback; safe to remove later).
+#   - RDS master password still exists (RDS requires one) but TAG doesn't use it.
+#   - GOTCHA: the OIDC trust-policy condition key must be the provider URL
+#     (oidc.eks.../id/XXX:sub), NOT the full ARN — strip the arn prefix with a
+#     plain replace(), not a regex.
+#   - PENDING: helm release was left "failed" (wait timed out during the initial
+#     bad-trust-policy crashloop; runtime is healthy). Reconcile with:
+#     terraform apply -target=helm_release.access_graph  (flips it to deployed).
+
 ## Known residual drift (review before the next real apply)
 
 - 1-cluster: 15 in-place diffs — tag reconciliation + EKS addons offering

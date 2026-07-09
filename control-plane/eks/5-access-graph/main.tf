@@ -148,8 +148,21 @@ resource "helm_release" "access_graph" {
       }
     }
 
+    # Passwordless: TAG assumes the IRSA role and authenticates to RDS with a
+    # short-lived IAM token (no stored DB password). Requires the DB user to
+    # hold the rds_iam role (granted out of band) and RDS IAM auth enabled.
+    serviceAccount = {
+      annotations = {
+        "eks.amazonaws.com/role-arn" = aws_iam_role.access_graph_rds.arn
+      }
+    }
+
     postgres = {
-      secretName = kubernetes_secret.access_graph_postgres.metadata[0].name
+      connectionString = "postgres://access_graph@${aws_db_instance.access_graph.address}:5432/access_graph?sslmode=require"
+      aws = {
+        enabled = true
+        region  = var.region
+      }
     }
 
     tls = {
