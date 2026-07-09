@@ -5,21 +5,25 @@
 #
 # What gets created:
 #   AWS resources:
-#     - RDS Aurora Serverless v2 (PostgreSQL 16) — Access Graph database
+#     - RDS PostgreSQL 16 instance (db.t4g.small) — Access Graph database
+#       (standard RDS, not Aurora — Aurora is SCP-denied in this account)
 #     - DB subnet group + security group in the EKS VPC
+#     - IRSA role (iam.tf) for passwordless RDS + Identity Activity Center access
+#     - Identity Activity Center pipeline (iac.tf): KMS key, 2 SQS queues,
+#       2 S3 buckets, Glue database + table, Athena workgroup (iac-policy.tf
+#       attaches the access policy to the IRSA role)
 #
 #   Kubernetes resources:
 #     - Namespace:   teleport-access-graph
-#     - Secret:      teleport-access-graph-postgres  (RDS connection URI)
+#     - Secret:      teleport-access-graph-postgres  (password URI — unused; TAG uses IAM)
 #     - Secret:      teleport-access-graph-tls       (gRPC TLS cert/key)
 #     - ConfigMap:   teleport-access-graph-ca        (in teleport-cluster namespace)
-#     - Helm release: teleport-access-graph
+#     - Helm release: teleport-access-graph (passwordless RDS + IAC enabled)
 #
-# After applying, re-apply 2-teleport with:
-#   TF_VAR_access_graph_enabled=true terraform apply
-#
-# The ConfigMap teleport-access-graph-ca is mounted by the auth pods
-# once 2-teleport is updated — no manual steps needed.
+# After applying, re-apply 2-teleport with TF_VAR_access_graph_enabled=true
+# (already the live value) — it also sets access_graph.audit_log.enabled=true,
+# the auth-side half of the Identity Activity Center. Run the one-time
+# rds_iam grant (see README) for passwordless auth. No other manual steps.
 
 locals {
   chart_version = var.access_graph_chart_version != "" ? var.access_graph_chart_version : null
@@ -118,6 +122,8 @@ resource "helm_release" "access_graph" {
     kubernetes_secret.access_graph_postgres,
     kubernetes_secret.access_graph_tls,
     aws_db_instance.access_graph,
+    aws_iam_role_policy.access_graph_iac,
+    aws_glue_catalog_table.identity_activity_center_table,
   ]
 
   name       = "teleport-access-graph"
@@ -163,6 +169,22 @@ resource "helm_release" "access_graph" {
         enabled = true
         region  = var.region
       }
+    }
+
+    # Identity Activity Center — audit-log analytics pipeline (SQS -> S3 ->
+    # Athena/Glue). Backs the "Dashboard" view. TAG reads/writes these via the
+    # IRSA role (see iac-policy.tf). The auth side exports events via
+    # access_graph.audit_log.enabled=true in 2-teleport.
+    identity_activity_center = {
+      enabled        = true
+      region         = var.region
+      database       = aws_glue_catalog_database.identity_activity_center_db.name
+      table          = aws_glue_catalog_table.identity_activity_center_table.name
+      workgroup      = aws_athena_workgroup.identity_activity_center_workgroup.name
+      sqs_queue_url  = aws_sqs_queue.identity_activity_center_queue.url
+      s3             = "s3://${aws_s3_bucket.identity_activity_center_long_term_storage.bucket}/data"
+      s3_results     = "s3://${aws_s3_bucket.identity_activity_center_transient_storage.bucket}/results"
+      s3_large_files = "s3://${aws_s3_bucket.identity_activity_center_transient_storage.bucket}/large_files"
     }
 
     tls = {
