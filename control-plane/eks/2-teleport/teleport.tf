@@ -39,6 +39,13 @@ locals {
         enabled  = true
         endpoint = "teleport-access-graph.teleport-access-graph.svc.cluster.local:443"
         ca       = "/var/run/access-graph/ca.pem"
+        # Export the audit log to Access Graph for the Identity Activity Center.
+        # NOTE: the Activity Center Dashboard also needs the IAC pipeline
+        # (SQS/Athena/S3) enabled on the TAG side (5-access-graph); this flag
+        # alone may not fully populate it.
+        audit_log = {
+          enabled = true
+        }
       }
     }
   } : {}
