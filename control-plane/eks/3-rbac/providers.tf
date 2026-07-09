@@ -16,13 +16,11 @@ terraform {
 
 # Read EKS cluster info from remote state (NO MANUAL COORDINATION)
 data "terraform_remote_state" "eks" {
-  backend = "local" # Change to "s3" if using remote backend
+  backend = "s3"
   config = {
-    path = "../1-cluster/terraform.tfstate"
-    # For S3 backend:
-    # bucket = "your-state-bucket"
-    # key    = "eks-cluster/terraform.tfstate"
-    # region = var.region
+    bucket = "presales-teleport-demo-tfstate"
+    key    = "control-plane/eks/1-cluster/terraform.tfstate"
+    region = "us-east-2"
   }
 }
 
