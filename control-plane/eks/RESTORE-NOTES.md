@@ -22,15 +22,17 @@ export TF_VAR_domain_name=teleportdemo.com
 export TF_VAR_teleport_version=18.7.6        # cluster-advertised; check webapi/ping
 export TF_VAR_access_graph_enabled=false
 
-# 3-rbac (metadata URLs recovered from live connectors — not secrets)
-export TF_VAR_okta_metadata_url="https://integrator-7036658.okta.com/app/exktcdx5a7sdDckm2697/sso/saml/metadata"
-export TF_VAR_okta_preview_metadata_url="https://gravitational-preview.oktapreview.com/app/exkftll0o8X4SCO6k1d7/sso/saml/metadata"
+# 3-rbac — IdP identifiers stay out of this (public) repo; recover from the
+# live connectors when needed:
+#   kubectl get teleportsamlconnectorsv2 -n teleport-cluster -o yaml | grep entity_descriptor_url
+export TF_VAR_okta_metadata_url="<from live okta-integrator connector>"
+export TF_VAR_okta_preview_metadata_url="<from live okta-preview connector>"
 export TF_VAR_autoupdate_mode=enabled
 # enable_okta_preview=true (okta-preview connector is live)
 
 # 4-plugins
 export TF_VAR_plugin_chart_version=18.7.1    # PIN — tf default "" means latest; live is 18.7.1
-export TF_VAR_slack_channel_id=C0AKS5M5XGQ
+# slack_channel_id: helm get values teleport-plugin-slack -n teleport-plugins
 # slack_bot_token: read from the live k8s secret when needed:
 #   kubectl get secret teleport-plugin-slack-credentials -n teleport-plugins -o jsonpath='{.data.token}' | base64 -d
 ```
