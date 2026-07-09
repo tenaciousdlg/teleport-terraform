@@ -65,6 +65,10 @@ module "eks" {
 
   cluster_endpoint_public_access = true
 
+  # Match the live cluster (create-only attribute; a true/false mismatch
+  # against imported state would force whole-cluster replacement).
+  bootstrap_self_managed_addons = false
+
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
