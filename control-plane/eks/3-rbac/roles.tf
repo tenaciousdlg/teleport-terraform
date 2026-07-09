@@ -669,6 +669,9 @@ resource "kubectl_manifest" "autoupdate_config" {
       namespace = data.kubernetes_namespace.teleport_cluster.metadata[0].name
     }
     spec = {
+      tools = {
+        mode = var.autoupdate_mode
+      }
       agents = {
         mode     = var.autoupdate_mode
         strategy = "halt-on-error"
