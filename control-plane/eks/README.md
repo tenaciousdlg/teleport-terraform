@@ -2,7 +2,9 @@
 
 > ⚠️ **Demo Environment**: optimized for SE demos and rapid iteration. Not for production use.
 
-This control plane is split into three layers to keep infrastructure stable while allowing fast Teleport and RBAC iteration. The same layout can scale to proxy‑peer, cloud, and standalone‑Linux control‑plane variants.
+This control plane is split into five layers to keep infrastructure stable while allowing fast Teleport and RBAC iteration.
+
+**State:** all layers use the **S3 backend** `presales-teleport-demo-tfstate` (versioned, encrypted, lockfile locking — see each layer's `backend.tf`). State is not local. Cross-layer reads (`terraform_remote_state`) resolve from that bucket, so run layers in order and destroy in reverse.
 
 ## Layout
 
@@ -10,9 +12,9 @@ This control plane is split into three layers to keep infrastructure stable whil
 control-plane/eks/
 ├── 1-cluster/       # EKS infrastructure (stable, rarely changed)
 ├── 2-teleport/      # Teleport deployment + supporting AWS/K8s resources
-├── 3-rbac/          # SAML/login rules, roles, and demo apps
+├── 3-rbac/          # SAML/login rules, roles, demo apps, agent managed updates
 ├── 4-plugins/       # Slack access request plugin
-└── 5-access-graph/  # Identity Security (Access Graph) via RDS Aurora + Helm
+└── 5-access-graph/  # Identity Security (Access Graph) via RDS PostgreSQL + Helm
 ```
 
 ## Quick Start
@@ -35,8 +37,8 @@ cd ../2-teleport
 export TF_VAR_region="us-east-2"
 export TF_VAR_proxy_address="presales.teleportdemo.com"
 export TF_VAR_user="you@example.com"
-export TF_VAR_teleport_version="18.4.1"
-export TF_VAR_env="prod"
+export TF_VAR_teleport_version="18.10.0"    # cluster version; check webapi/ping
+export TF_VAR_env="dev"                      # live presales value
 export TF_VAR_team="platform"
 export TF_VAR_okta_metadata_url="https://your-okta.okta.com/app/.../metadata"
 terraform init
@@ -132,12 +134,26 @@ aws ec2 delete-security-group --region $REGION --group-id <sg-id>
 
 Then re-run `terraform destroy`.
 
-## Teleport Updates
+## Teleport Updates (control plane + managed agents)
 
-To update Teleport without touching the EKS layer, update `TF_VAR_teleport_version` and re-apply only the `2-teleport` layer:
+Two steps, control plane first — agents must never lead the auth server:
 
 ```bash
+# 1) Bump the control plane
 cd 2-teleport
-export TF_VAR_teleport_version=18.7.2
+export TF_VAR_teleport_version=18.11.0   # the new version
+terraform apply
+
+# 2) Point agents + client tools at it (never above the cluster version)
+cd ../3-rbac
+export TF_VAR_autoupdate_target_version=18.11.0
 terraform apply
 ```
+
+`3-rbac` manages the `TeleportAutoupdateConfigV1` (schedule Mon–Fri 02:00 UTC, halt-on-error; `tools` mode enabled) and `TeleportAutoupdateVersionV1` (the target). Agents roll in the next window; `tsh`/`tctl` get the target via managed client-tools updates. Confirm with `curl https://<proxy>/v1/webapi/find | jq .auto_update`.
+
+Running presales intentionally on the latest release is the point — it surfaces release issues before they hit a demo.
+
+## Pod Security
+
+The `teleport-cluster` namespace enforces Pod Security Standards `baseline` (`pod-security.kubernetes.io/enforce=baseline`, set in `2-teleport`). The Teleport chart pods comply; new workloads in that namespace must too.

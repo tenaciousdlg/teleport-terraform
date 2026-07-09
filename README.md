@@ -186,6 +186,6 @@ Note: workflows are only triggerable from the default branch (`main`).
 
 ## Notes
 
-- State is kept locally and gitignored. Each practitioner manages their own state.
+- Data-plane and profile state is kept locally and gitignored (each practitioner manages their own). **The eks control plane is different**: it runs `presales.teleportdemo.com` and uses a shared **S3 backend** (`presales-teleport-demo-tfstate`, versioned + encrypted + locking) so that live state is never a single local copy — see `control-plane/eks/README.md`.
 - The `application-access-aws-console` template requires `manage_account_a_roles=true` on first deploy in a fresh account to create the IAM target roles. See that template's README for the shared-account ownership pattern.
 - All templates tag resources with `teleport.dev/creator`, `env`, `team`, and `ManagedBy=terraform` for cost attribution and RBAC consistency.
