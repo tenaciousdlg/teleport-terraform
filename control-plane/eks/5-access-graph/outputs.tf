@@ -4,7 +4,7 @@ output "access_graph_endpoint" {
 }
 
 output "rds_endpoint" {
-  value       = aws_rds_cluster.access_graph.endpoint
+  value       = aws_db_instance.access_graph.address
   description = "RDS Aurora cluster endpoint"
 }
 

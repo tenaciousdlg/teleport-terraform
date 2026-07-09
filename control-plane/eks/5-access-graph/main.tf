@@ -78,10 +78,10 @@ resource "kubernetes_secret" "access_graph_postgres" {
     namespace = kubernetes_namespace.access_graph.metadata[0].name
   }
   data = {
-    uri = "postgres://access_graph:${var.db_password}@${aws_rds_cluster.access_graph.endpoint}:5432/access_graph?sslmode=require"
+    uri = "postgres://access_graph:${var.db_password}@${aws_db_instance.access_graph.address}:5432/access_graph?sslmode=require"
   }
   type       = "Opaque"
-  depends_on = [aws_rds_cluster_instance.access_graph]
+  depends_on = [aws_db_instance.access_graph]
 }
 
 # TLS certificate for the Access Graph gRPC listener
@@ -117,7 +117,7 @@ resource "helm_release" "access_graph" {
   depends_on = [
     kubernetes_secret.access_graph_postgres,
     kubernetes_secret.access_graph_tls,
-    aws_rds_cluster_instance.access_graph,
+    aws_db_instance.access_graph,
   ]
 
   name       = "teleport-access-graph"

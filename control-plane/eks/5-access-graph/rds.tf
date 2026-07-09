@@ -1,5 +1,9 @@
 ##################################################################################
-# RDS AURORA SERVERLESS v2 (PostgreSQL) — Access Graph database
+# RDS POSTGRESQL — Access Graph database
+#
+# Standard RDS instance, not Aurora: the AWS org's SCP explicitly denies
+# rds:CreateDBCluster in this account (verified 2026-07-09), while
+# rds:CreateDBInstance is allowed (the rds-mysql demos use it).
 ##################################################################################
 
 # Subnet group using the EKS private subnets
@@ -41,38 +45,21 @@ resource "aws_security_group" "access_graph_db" {
   }
 }
 
-# Aurora Serverless v2 PostgreSQL cluster
-resource "aws_rds_cluster" "access_graph" {
-  cluster_identifier     = "teleport-access-graph-${var.env}"
-  engine                 = "aurora-postgresql"
-  engine_mode            = "provisioned"
-  engine_version         = "16.4"
-  database_name          = "access_graph"
-  master_username        = "access_graph"
-  master_password        = var.db_password
+resource "aws_db_instance" "access_graph" {
+  identifier             = "teleport-access-graph-${var.env}"
+  engine                 = "postgres"
+  engine_version         = "16.14"
+  instance_class         = "db.t4g.small"
+  allocated_storage      = 20
+  storage_type           = "gp3"
+  storage_encrypted      = true
+  db_name                = "access_graph"
+  username               = "access_graph"
+  password               = var.db_password
   db_subnet_group_name   = aws_db_subnet_group.access_graph.name
   vpc_security_group_ids = [aws_security_group.access_graph_db.id]
   skip_final_snapshot    = true
   deletion_protection    = false
-
-  serverlessv2_scaling_configuration {
-    min_capacity = 0.5
-    max_capacity = 4.0
-  }
-
-  tags = {
-    env  = var.env
-    team = var.team
-  }
-}
-
-# Single Aurora Serverless v2 instance
-resource "aws_rds_cluster_instance" "access_graph" {
-  identifier         = "teleport-access-graph-${var.env}-1"
-  cluster_identifier = aws_rds_cluster.access_graph.id
-  instance_class     = "db.serverless"
-  engine             = aws_rds_cluster.access_graph.engine
-  engine_version     = aws_rds_cluster.access_graph.engine_version
 
   tags = {
     env  = var.env

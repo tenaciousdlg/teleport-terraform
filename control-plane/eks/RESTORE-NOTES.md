@@ -19,8 +19,8 @@ export TF_VAR_name=presales TF_VAR_ver_cluster=1.35
 # 2-teleport
 export TF_VAR_proxy_address=presales.teleportdemo.com
 export TF_VAR_domain_name=teleportdemo.com
-export TF_VAR_teleport_version=18.7.6        # cluster-advertised; check webapi/ping
-export TF_VAR_access_graph_enabled=false
+export TF_VAR_teleport_version=18.10.0       # cluster-advertised; check webapi/ping
+export TF_VAR_access_graph_enabled=true      # TAG deployed 2026-07-09 (layer 5)
 
 # 3-rbac — IdP identifiers stay out of this (public) repo; recover from the
 # live connectors when needed:
@@ -36,6 +36,12 @@ export TF_VAR_plugin_chart_version=18.7.1    # PIN — tf default "" means lates
 # slack_bot_token: read from the live k8s secret when needed:
 #   kubectl get secret teleport-plugin-slack-credentials -n teleport-plugins -o jsonpath='{.data.token}' | base64 -d
 ```
+
+# 5-access-graph (deployed 2026-07-09)
+# Standard RDS Postgres 16.14 (db.t4g.small) — Aurora is SCP-denied in this
+# account (rds:CreateDBCluster, org policy p-92pxkqrp). db_password lives in
+# the k8s secret teleport-access-graph-postgres (and in state):
+#   kubectl get secret teleport-access-graph-postgres -n teleport-access-graph -o jsonpath='{.data.uri}' | base64 -d
 
 ## Known residual drift (review before the next real apply)
 
