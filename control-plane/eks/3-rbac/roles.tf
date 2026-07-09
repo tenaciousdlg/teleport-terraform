@@ -685,3 +685,27 @@ resource "kubectl_manifest" "autoupdate_config" {
     }
   })
 }
+
+resource "kubectl_manifest" "autoupdate_version" {
+  count = var.autoupdate_target_version != "" ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportAutoupdateVersionV1"
+    metadata = {
+      name      = "autoupdate-version"
+      namespace = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+    }
+    spec = {
+      agents = {
+        start_version  = var.autoupdate_start_version != "" ? var.autoupdate_start_version : var.autoupdate_target_version
+        target_version = var.autoupdate_target_version
+        schedule       = "regular"
+        mode           = var.autoupdate_mode
+      }
+      tools = {
+        target_version = var.autoupdate_target_version
+      }
+    }
+  })
+}

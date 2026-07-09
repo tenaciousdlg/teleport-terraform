@@ -51,3 +51,15 @@ variable "autoupdate_mode" {
   type        = string
   default     = "enabled"
 }
+
+variable "autoupdate_target_version" {
+  description = "Target Teleport version for agent + client-tools managed updates. Must not exceed the cluster version (upgrade 2-teleport first). Empty = no autoupdate_version resource; agents stay put."
+  type        = string
+  default     = ""
+}
+
+variable "autoupdate_start_version" {
+  description = "Version agents update from; defaults to the target version when empty"
+  type        = string
+  default     = ""
+}
