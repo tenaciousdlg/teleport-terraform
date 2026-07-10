@@ -86,8 +86,8 @@ module "eks" {
     # Improved node group sizing for demos
     primary = {
       name           = "${var.name}-group-spot"
-      instance_types = ["t3.small"] # Smallest to go for Teleport
-      capacity_type  = "SPOT"       # Cost optimization
+      instance_types = ["t3.medium"] # t3.small (2GB) overcommits with Teleport + TAG + IAC; medium = 4GB
+      capacity_type  = "SPOT"        # Cost optimization
       min_size       = 1
       max_size       = 4
       desired_size   = 2
@@ -95,8 +95,8 @@ module "eks" {
 
     stable = {
       name           = "${var.name}-group-stable"
-      instance_types = ["t3.small"]
-      capacity_type  = "ON_DEMAND" # Won't be reclaimed
+      instance_types = ["t3.medium"]
+      capacity_type  = "ON_DEMAND" # Won't be reclaimed — anchors auth/proxy/TAG
       min_size       = 1
       max_size       = 1
       desired_size   = 1
