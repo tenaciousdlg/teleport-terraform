@@ -66,7 +66,10 @@ resource "helm_release" "teleport_cluster" {
   chart      = "teleport-cluster"
   version    = var.teleport_version
   wait       = true
-  timeout    = 300
+  # 300s produced a false "failed" release on 2026-07-09: the rolling
+  # auth+proxy upgrade outlived the wait deadline after the manifests had
+  # already applied. Rollouts legitimately take longer than 5 minutes.
+  timeout    = 600
   values = [
     jsonencode({
       clusterName       = var.proxy_address
