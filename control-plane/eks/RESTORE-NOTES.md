@@ -19,16 +19,20 @@ export TF_VAR_name=presales TF_VAR_ver_cluster=1.35
 # 2-teleport
 export TF_VAR_proxy_address=presales.teleportdemo.com
 export TF_VAR_domain_name=teleportdemo.com
-export TF_VAR_teleport_version=18.10.0       # cluster-advertised; check webapi/ping
+export TF_VAR_teleport_version=18.10.3       # cluster-advertised; check webapi/ping
 export TF_VAR_access_graph_enabled=true      # TAG deployed 2026-07-09 (layer 5)
 
 # 3-rbac — IdP identifiers stay out of this (public) repo; recover from the
-# live connectors when needed:
-#   kubectl get teleportsamlconnectorsv2 -n teleport-cluster -o yaml | grep entity_descriptor_url
+# live connectors when needed (resource kind is teleportsamlconnectors):
+#   kubectl get teleportsamlconnectors -n teleport-cluster -o yaml | grep entity_descriptor_url
 export TF_VAR_okta_metadata_url="<from live okta-integrator connector>"
 export TF_VAR_okta_preview_metadata_url="<from live okta-preview connector>"
 export TF_VAR_autoupdate_mode=enabled
-# enable_okta_preview=true (okta-preview connector is live)
+export TF_VAR_enable_okta_preview=true               # okta-preview connector is live
+# REQUIRED — omitting it plans a DESTROY of the live autoupdate_version CR
+# (var default "" gates the resource off). Live value:
+#   kubectl get teleportautoupdateversionsv1 -n teleport-cluster -o yaml
+export TF_VAR_autoupdate_target_version=18.10.3      # keep = cluster version
 
 # 4-plugins
 export TF_VAR_plugin_chart_version=18.7.1    # PIN — tf default "" means latest; live is 18.7.1
@@ -42,6 +46,9 @@ export TF_VAR_plugin_chart_version=18.7.1    # PIN — tf default "" means lates
 # account (rds:CreateDBCluster, org policy p-92pxkqrp). db_password lives in
 # the k8s secret teleport-access-graph-postgres (and in state):
 #   kubectl get secret teleport-access-graph-postgres -n teleport-access-graph -o jsonpath='{.data.uri}' | base64 -d
+
+# 5-access-graph also requires (added after these notes were first written):
+export TF_VAR_teleport_host_ca="$(curl -s 'https://presales.teleportdemo.com/webapi/auth/export?type=tls-host')"
 
 # 5-access-graph — TAG uses PASSWORDLESS RDS IAM auth (2026-07-09)
 # TAG assumes IRSA role teleport-access-graph-rds-dev and connects to RDS with
@@ -60,21 +67,30 @@ export TF_VAR_plugin_chart_version=18.7.1    # PIN — tf default "" means lates
 #     bad-trust-policy crashloop; runtime is healthy). Reconcile with:
 #     terraform apply -target=helm_release.access_graph  (flips it to deployed).
 
-## Known residual drift (review before the next real apply)
+## Known residual drift
 
-- 1-cluster: 15 in-place diffs — tag reconciliation + EKS addons offering
-  version bumps (`most_recent = true`). `bootstrap_self_managed_addons = false`
-  was added to main.tf to match the live cluster (create-only attr; removing
-  it would plan a full cluster replacement).
-- 2-teleport: namespace label `pod-security.kubernetes.io/enforce=baseline`
-  exists in config but not live — applying would newly enforce PSS baseline.
-  Decide: keep (hardening) or drop from config.
-- 3/4: remaining diffs are provider-default/yaml normalization (semantic no-ops).
+NONE as of 2026-08-04: all five layers plan "No changes" after the drift
+cleanup + 18.10.0 → 18.10.3 upgrade (helm rev 6, addon patch bumps applied,
+audit_log values converged, autoupdate CR at 18.10.3 — agents roll on the
+regular schedule). The 2026-07-09 "failed" helm status was a false failure:
+the 300s wait deadline expired after the manifests had applied (the audit_log
+config was already live in the auth ConfigMap); helm_release timeout is now
+600s. Reminders that still apply:
+
+- 1-cluster: `most_recent = true` on EKS addons means future plans will
+  periodically offer patch bumps — expected, apply at will.
+  `bootstrap_self_managed_addons = false` remains create-only — removing it
+  would plan a full cluster replacement.
+- 2-teleport: a helm_release change makes the route53 record diffs show
+  `(known after apply)` — cascade of the LB data source, not DNS drift.
+- 3-rbac: prod-access (the 2026-07-29 destroy casualty) is properly back in
+  state.
 
 ## Next-change checklist
 
 1. `terraform plan` per layer with the exports above; expect only the diffs
    listed here. Anything else: stop and investigate.
-2. Consider migrating all layers to a remote backend (an S3 bucket + DynamoDB
-   tables already exist from 2-teleport's own resources) so local state files
-   are never again the only copy.
+2. ~~Consider migrating all layers to a remote backend~~ DONE — all five
+   layers use s3://presales-teleport-demo-tfstate (backend.tf per layer);
+   the terraform.tfstate files still sitting in 1-cluster..4-plugins are
+   pre-migration leftovers, safe to delete.
