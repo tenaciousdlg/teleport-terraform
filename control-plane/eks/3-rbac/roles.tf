@@ -55,18 +55,15 @@ resource "kubectl_manifest" "login_rule_okta" {
     }
     spec = {
       priority = 0
+      # Exactly ONE of traits_map / traits_expression is allowed — Teleport
+      # rejects the rule when both are set. An earlier version of this manifest
+      # carried a demo traits_expression alongside the map; after the live rule
+      # was lost (2026-07-29 destroy) the operator could never recreate it and
+      # crash-looped on validation until the expression was dropped (2026-08-05).
       traits_map = {
         logins = ["external.logins", "strings.lower(external.username)"]
         groups = ["external.groups"]
       }
-      traits_expression = <<-EOT
-        external.put("logins",
-          choose(
-            option(external.groups.contains("okta"), "okta"),
-            option(true, "local")
-          )
-        )
-      EOT
     }
   })
 }
@@ -378,6 +375,43 @@ resource "kubectl_manifest" "role_prod_access" {
   })
 }
 
+# Per-session MFA variant: same prod nodes, but every connection re-verifies
+# with WebAuthn (the touch-your-key-at-ssh-time demo beat). Requestable via
+# prod-requester like the rest of the prod ladder.
+resource "kubectl_manifest" "role_prod_access_mfa" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "prod-access-mfa"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "Production SSH with per-session MFA re-verification"
+    }
+    spec = {
+      allow = {
+        node_labels = {
+          env  = ["prod"]
+          team = [var.prod_team]
+        }
+        host_groups = ["wheel"]
+        logins      = ["{{external.logins}}", "{{email.local(external.username)}}", "{{email.local(external.email)}}", "ubuntu", "ec2-user"]
+        rules = [
+          { resources = ["event"], verbs = ["list", "read"] },
+          { resources = ["session"], verbs = ["read", "list"] }
+        ]
+      }
+      options = {
+        create_host_user_mode          = "keep"
+        create_host_user_default_shell = "/bin/bash"
+        max_session_ttl                = "1h0m0s"
+        # Proto enum, not bool (CRD rejects booleans): 1 = per-session webauthn
+        require_session_mfa = 1
+        enhanced_recording  = ["command", "network"]
+      }
+    }
+  })
+}
+
 resource "kubectl_manifest" "role_prod_auto_access" {
   yaml_body = yamlencode({
     apiVersion = "resources.teleport.dev/v1"
@@ -484,8 +518,8 @@ resource "kubectl_manifest" "role_prod_requester" {
     spec = {
       allow = {
         request = {
-          roles           = ["prod-readonly-access", "prod-access", "prod-auto-access"]
-          search_as_roles = ["prod-readonly-access", "prod-access", "prod-auto-access"]
+          roles           = ["prod-readonly-access", "prod-access", "prod-auto-access", "prod-access-mfa"]
+          search_as_roles = ["prod-readonly-access", "prod-access", "prod-auto-access", "prod-access-mfa"]
         }
       }
     }
@@ -560,8 +594,8 @@ resource "kubectl_manifest" "role_prod_reviewer" {
     spec = {
       allow = {
         review_requests = {
-          roles            = ["prod-readonly-access", "prod-access", "prod-auto-access"]
-          preview_as_roles = ["prod-readonly-access", "prod-access", "prod-auto-access"]
+          roles            = ["prod-readonly-access", "prod-access", "prod-auto-access", "prod-access-mfa"]
+          preview_as_roles = ["prod-readonly-access", "prod-access", "prod-auto-access", "prod-access-mfa"]
         }
       }
     }
