@@ -91,6 +91,13 @@ resource "helm_release" "teleport_cluster" {
       # webauthn-only (chart default would also allow otp); device_trust is set
       # via auth.teleportConfig below — the chart has no deviceTrust value.
       authentication = { type = "saml", secondFactors = ["webauthn"] }
+      # externalTrafficPolicy Local preserves real client IPs. The default
+      # (Cluster) SNATs NLB traffic to node IPs, which breaks Device Trust web
+      # sessions: the device web token binds the client IP seen at login, and
+      # the Connect authorize call arriving via a different node fails with
+      # "invalid device web token" (IP mismatch, root-caused 2026-08-15).
+      # Applied live via kubectl patch 2026-08-17; this keeps rebuilds correct.
+      service        = { spec = { externalTrafficPolicy = "Local" } }
       serviceAccount = { create = false, name = "teleport-cluster" }
       auth           = { serviceAccount = { create = false, name = "teleport-cluster" }, teleportConfig = local.auth_teleport_config }
       proxy          = { serviceAccount = { create = false, name = "teleport-cluster-proxy" } }
