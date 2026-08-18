@@ -18,3 +18,7 @@ terraform.rc
 
 # Teleport license files
 *license.pem
+
+# terraform plan artifacts
+*.tfplan
+tfplan
