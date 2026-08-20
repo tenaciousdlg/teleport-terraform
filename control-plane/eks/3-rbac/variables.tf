@@ -63,3 +63,8 @@ variable "autoupdate_start_version" {
   type        = string
   default     = ""
 }
+
+variable "access_list_owner" {
+  description = "Teleport username that owns the access lists (runs membership reviews). Kept out of the repo like the IdP URLs — set via TF_VAR_access_list_owner."
+  type        = string
+}

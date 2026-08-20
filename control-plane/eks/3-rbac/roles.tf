@@ -105,6 +105,47 @@ resource "kubectl_manifest" "role_base_user" {
   })
 }
 
+# ABAC showcase: ONE role for the whole org (granted by the Everyone access
+# list); WHAT it reaches is decided per-user by the IdP-asserted team-name
+# trait (Okta derives it from group membership — okta repo scim.tf) plus any
+# team-name values granted by access lists (engineers get "dev" on top of
+# their asserted "platform" — Teleport unions the two at login). A user with
+# no team gets team-name="" which matches nothing. env=dev only: prod SSH
+# stays JIT-only via prod-access, on purpose.
+resource "kubectl_manifest" "role_team_access" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "team-access"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "SSH to your team's dev nodes — scope comes from the IdP-asserted team-name trait, not per-team roles"
+    }
+    spec = {
+      allow = {
+        # Personal login ONLY — no shared ubuntu/ec2-user accounts. Paired
+        # with create_host_user_mode=keep below, every session is a named
+        # user auto-provisioned on the host: full attribution in the audit
+        # log (least privilege: shared accounts break accountability).
+        logins = ["{{email.local(external.username)}}"]
+        node_labels = {
+          env = ["dev"]
+          # Bracket-index form is REQUIRED: the trait key contains a hyphen,
+          # and {{external.team-name}} parses "-" as subtraction — the
+          # operator rejects the role ("- is not supported").
+          team = ["{{external[\"team-name\"]}}"]
+        }
+      }
+      options = {
+        create_host_user_mode          = "keep"
+        create_host_user_default_shell = "/bin/bash"
+        max_session_ttl                = "8h0m0s"
+        enhanced_recording             = ["command", "network"]
+      }
+    }
+  })
+}
+
 # Dev/Prod Access Roles, Reviewers, Requesters, Access Lists
 
 ##################################################################################
@@ -148,8 +189,11 @@ resource "kubectl_manifest" "role_dev_access" {
           }
         ]
         kubernetes_groups = ["{{external.kubernetes_groups}}", "system:masters"]
+        # Scoped like every other matcher in this role (was "*":"*" — the
+        # only wildcard cluster matcher in the dev tier; least privilege).
         kubernetes_labels = {
-          "*" = "*"
+          env  = "dev"
+          team = var.dev_team
         }
         kubernetes_resources = [
           { kind = "*", name = "*", namespace = "dev", verbs = ["*"] }
@@ -342,7 +386,9 @@ resource "kubectl_manifest" "role_prod_access" {
             kinds = ["k8s", "ssh"]
             modes = ["moderator", "observer"]
             name  = "Join prod sessions"
-            roles = ["*"]
+            # Scoped (was ["*"]): joinable sessions are those started under
+            # these roles — wildcards in a prod role are the anti-pattern.
+            roles = ["prod-access", "prod-access-mfa", "platform-dev-access", "dev-access"]
           }
         ]
         kubernetes_groups = ["{{external.kubernetes_groups}}", "system:masters"]
@@ -537,6 +583,13 @@ resource "kubectl_manifest" "role_prod_requester" {
         request = {
           roles           = ["prod-readonly-access", "prod-access", "prod-auto-access", "prod-access-mfa"]
           search_as_roles = ["prod-readonly-access", "prod-access", "prod-auto-access", "prod-access-mfa"]
+          # JIT bounds: elevation expires in ≤4h (zero standing privilege —
+          # no more multi-day approved requests), and prod requests must
+          # carry a reason (audit trail; the demo-prodaccess AMR keys off it).
+          max_duration = "4h0m0s"
+          reason = {
+            mode = "required"
+          }
         }
       }
     }
@@ -556,6 +609,9 @@ resource "kubectl_manifest" "role_dev_requester" {
         request = {
           roles           = ["prod-readonly-access"]
           search_as_roles = ["prod-readonly-access"]
+          # Reason stays optional at the dev tier (demo friction); the
+          # duration bound still applies — no long-lived elevations.
+          max_duration = "4h0m0s"
         }
       }
     }
@@ -575,6 +631,10 @@ resource "kubectl_manifest" "role_senior_dev_requester" {
         request = {
           roles           = ["prod-readonly-access", "prod-access", "prod-auto-access"]
           search_as_roles = ["prod-readonly-access", "prod-access", "prod-auto-access"]
+          max_duration    = "4h0m0s"
+          reason = {
+            mode = "required"
+          }
         }
       }
     }
@@ -633,9 +693,18 @@ resource "kubectl_manifest" "access_list_everyone" {
       description = "All users in the organization"
       type        = "scim"
       owners = [
-        { name = "admin", description = "Platform team admin" }
+        # Owners must be REAL users — they run membership reviews and the
+        # ownership shows in audit ("admin" was a phantom placeholder). The
+        # actual identity stays out of this public repo, same as the IdP
+        # URLs: set TF_VAR_access_list_owner locally.
+        { name = var.access_list_owner, description = "Platform lead" }
       ]
       grants = {
+        # GOTCHA: this list is MEMBERLESS — Okta cannot group-push its
+        # built-in "Everyone" group, so SCIM never populates it and these
+        # grants reach nobody. base-user actually comes from the SAML
+        # connector's attributes_to_roles mapping. Kept for parity with the
+        # Okta group; grant real roles via devs/senior-devs/engineers below.
         roles = ["base-user"]
       }
     }
@@ -655,10 +724,16 @@ resource "kubectl_manifest" "access_list_devs" {
       description = "Standing dev access for the dev team"
       type        = "scim"
       owners = [
-        { name = "admin", description = "Platform team admin" }
+        # Owners must be REAL users — they run membership reviews and the
+        # ownership shows in audit ("admin" was a phantom placeholder). The
+        # actual identity stays out of this public repo, same as the IdP
+        # URLs: set TF_VAR_access_list_owner locally.
+        { name = var.access_list_owner, description = "Platform lead" }
       ]
       grants = {
-        roles = ["dev-access", "dev-auto-access", "dev-requester"]
+        # team-access = the ABAC role: shared by all tiers, per-user scope
+        # via the team-name trait (see role_team_access).
+        roles = ["dev-access", "dev-auto-access", "dev-requester", "team-access"]
       }
     }
   })
@@ -677,10 +752,14 @@ resource "kubectl_manifest" "access_list_senior_devs" {
       description = "Senior devs: cross-team dev access + prod request capability"
       type        = "scim"
       owners = [
-        { name = "admin", description = "Platform team admin" }
+        # Owners must be REAL users — they run membership reviews and the
+        # ownership shows in audit ("admin" was a phantom placeholder). The
+        # actual identity stays out of this public repo, same as the IdP
+        # URLs: set TF_VAR_access_list_owner locally.
+        { name = var.access_list_owner, description = "Platform lead" }
       ]
       grants = {
-        roles = ["platform-dev-access", "dev-auto-access", "senior-dev-requester"]
+        roles = ["platform-dev-access", "dev-auto-access", "senior-dev-requester", "team-access"]
       }
     }
   })
@@ -699,10 +778,14 @@ resource "kubectl_manifest" "access_list_engineers" {
       description = "Platform team: standing dev access, dev approvals, prod requests"
       type        = "scim"
       owners = [
-        { name = "admin", description = "Platform team admin" }
+        # Owners must be REAL users — they run membership reviews and the
+        # ownership shows in audit ("admin" was a phantom placeholder). The
+        # actual identity stays out of this public repo, same as the IdP
+        # URLs: set TF_VAR_access_list_owner locally.
+        { name = var.access_list_owner, description = "Platform lead" }
       ]
       grants = {
-        roles = ["platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "editor", "auditor"]
+        roles = ["platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "editor", "auditor", "team-access"]
         # Engineers hold standing dev-team roles (dev-auto-access,
         # platform-dev-access above), so the list also asserts the dev team
         # affiliation as a trait. Okta separately asserts the HOME team from

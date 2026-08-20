@@ -33,6 +33,9 @@ export TF_VAR_enable_okta_preview=true               # okta-preview connector is
 # (var default "" gates the resource off). Live value:
 #   kubectl get teleportautoupdateversionsv1 -n teleport-cluster -o yaml
 export TF_VAR_autoupdate_target_version=18.10.3      # keep = cluster version
+# REQUIRED — access list owner (real Teleport username; an org email, so it
+# stays out of the repo — the gitleaks hook enforces this):
+export TF_VAR_access_list_owner="<your Teleport username>"
 
 # 4-plugins
 export TF_VAR_plugin_chart_version=18.7.1    # PIN — tf default "" means latest; live is 18.7.1
