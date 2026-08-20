@@ -45,28 +45,41 @@ resource "kubectl_manifest" "saml_connector_okta_preview" {
 }
 
 # Login Rules
-resource "kubectl_manifest" "login_rule_okta" {
-  yaml_body = yamlencode({
-    apiVersion = "resources.teleport.dev/v1"
-    kind       = "TeleportLoginRule"
-    metadata = {
-      name      = "okta-preferred-login-rule"
-      namespace = data.kubernetes_namespace.teleport_cluster.metadata[0].name
-    }
-    spec = {
-      priority = 0
-      # Exactly ONE of traits_map / traits_expression is allowed — Teleport
-      # rejects the rule when both are set. An earlier version of this manifest
-      # carried a demo traits_expression alongside the map; after the live rule
-      # was lost (2026-07-29 destroy) the operator could never recreate it and
-      # crash-looped on validation until the expression was dropped (2026-08-05).
-      traits_map = {
-        logins = ["external.logins", "strings.lower(external.username)"]
-        groups = ["external.groups"]
-      }
-    }
-  })
-}
+#
+# PERMANENTLY RETIRED 2026-08-20 (Chris): short logins (email local part)
+# and raw SSO attributes were always the intent. This rule's traits_map
+# REPLACED the trait set with logins+groups only, silently starving every
+# role template that expects raw assertion attributes —
+# {{email.local(external.username)}} expanded to nothing (so logins were the
+# FULL email via strings.lower(external.username), never "dlg") and
+# {{external.aws_role_arns}} had no trait to read. With no login rule, all
+# assertion attributes land as traits untouched and the templates work as
+# designed. The rule arrived wholesale in the 2026-03-12 rev-tech sync
+# (b2ce624); rev-tech itself doesn't carry it. Kept for history only —
+# do NOT re-enable as-was. Gotcha if ever recreating one: exactly ONE of
+# traits_map / traits_expression is allowed — both set = operator
+# crash-loop (2026-07-29 destroy → fixed 2026-08-05).
+#
+# resource "kubectl_manifest" "login_rule_okta" {
+#   yaml_body = yamlencode({
+#     apiVersion = "resources.teleport.dev/v1"
+#     kind       = "TeleportLoginRule"
+#     metadata = {
+#       name      = "okta-preferred-login-rule"
+#       namespace = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+#     }
+#     spec = {
+#       priority = 0
+#       traits_map = {
+#         logins = ["external.logins", "strings.lower(external.username)"]
+#         groups = ["external.groups"]
+#         # Trait-collision demo: pass-through required because traits_map
+#         # REPLACES the trait set — unmapped assertion attributes are dropped.
+#         "team-name" = ["external.team-name"]
+#       }
+#     }
+#   })
+# }
 
 # Base user role
 resource "kubectl_manifest" "role_base_user" {
@@ -496,8 +509,12 @@ resource "kubectl_manifest" "role_prod_readonly_access" {
         windows_desktop_logins = ["{{external.windows_logins}}", "Administrator"]
       }
       options = {
-        max_session_ttl       = "4h0m0s"
-        create_host_user_mode = "off"
+        max_session_ttl = "4h0m0s"
+        # "keep" since 2026-08-20 (was "off"): this is the ONLY standing role
+        # matching the env=prod node, and a matched role without keep blocks
+        # auto host-user creation for the whole session — Chris's rule is
+        # every system has host user creation enabled.
+        create_host_user_mode = "keep"
         create_db_user        = false
         create_db_user_mode   = "off"
         enhanced_recording    = ["command", "network"]
@@ -686,6 +703,16 @@ resource "kubectl_manifest" "access_list_engineers" {
       ]
       grants = {
         roles = ["platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "editor", "auditor"]
+        # Engineers hold standing dev-team roles (dev-auto-access,
+        # platform-dev-access above), so the list also asserts the dev team
+        # affiliation as a trait. Okta separately asserts the HOME team from
+        # group membership (engineers=platform — okta repo scim.tf); Teleport
+        # UNIONS the two at login: engineers get team-name=[platform, dev].
+        # Identical values from both sides dedupe to one. Grant values are
+        # literals, not expressions; applied at next login, never live.
+        traits = {
+          "team-name" = ["dev"]
+        }
       }
     }
   })
