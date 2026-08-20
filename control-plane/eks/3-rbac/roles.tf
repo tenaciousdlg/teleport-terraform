@@ -34,8 +34,11 @@ resource "kubectl_manifest" "saml_connector_okta_preview" {
     }
     spec = {
       acs = "https://${var.proxy_address}/v1/webapi/saml/acs/okta-preview"
+      # Unified pattern: a second IdP maps its groups to the SAME bundle the
+      # engineers access list grants — no standing editor here either;
+      # visiting SEs JIT it via admin-requester like everyone else.
       attributes_to_roles = [
-        { name = "groups", value = "Solutions-Engineering", roles = ["auditor", "access", "editor"] }
+        { name = "groups", value = "Solutions-Engineering", roles = ["base-user", "platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "auditor", "team-access", "config-reader", "admin-requester"] }
       ]
       display                 = "okta preview"
       entity_descriptor_url   = var.okta_preview_metadata_url
@@ -146,6 +149,66 @@ resource "kubectl_manifest" "role_team_access" {
   })
 }
 
+# Zero standing privilege: engineers hold NO standing editor. Reads come
+# from config-reader (below) + auditor; writes are JIT via admin-requester →
+# editor (4h, reason required, auto-approved for the owner by the
+# demo-admin-jit AMR in amr.tf). Break-glass: kubectl exec into the auth pod
+# gives local tctl with full admin (see RESTORE-NOTES).
+resource "kubectl_manifest" "role_config_reader" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "config-reader"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "Read-only cluster configuration access — preflight tooling (demo-doctor) and inspection without standing editor"
+    }
+    spec = {
+      allow = {
+        rules = [
+          {
+            resources = [
+              "role", "user", "access_list", "access_monitoring_rule",
+              "access_request", "node", "app", "db", "kube_cluster",
+              "windows_desktop", "auth_connector", "login_rule", "lock",
+              "cluster_auth_preference", "cluster_networking_config",
+              "session_recording_config", "trusted_cluster"
+            ]
+            verbs = ["list", "read"]
+          }
+        ]
+      }
+      options = {
+        max_session_ttl    = "8h0m0s"
+        enhanced_recording = ["command", "network"]
+      }
+    }
+  })
+}
+
+resource "kubectl_manifest" "role_admin_requester" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "admin-requester"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "JIT path to editor: 4h max, reason required"
+    }
+    spec = {
+      allow = {
+        request = {
+          roles        = ["editor"]
+          max_duration = "4h0m0s"
+          reason = {
+            mode = "required"
+          }
+        }
+      }
+    }
+  })
+}
+
 # Dev/Prod Access Roles, Reviewers, Requesters, Access Lists
 
 ##################################################################################
@@ -188,7 +251,10 @@ resource "kubectl_manifest" "role_dev_access" {
             roles = ["dev-access", "platform-dev-access"]
           }
         ]
-        kubernetes_groups = ["{{external.kubernetes_groups}}", "system:masters"]
+        # Scoped k8s group (was system:masters, which bypasses ALL k8s RBAC):
+        # namespace-bound RoleBinding in kube-rbac.tf. kubernetes_resources
+        # below still pins the namespace as the second enforcement layer.
+        kubernetes_groups = ["{{external.kubernetes_groups}}", "teleport-dev-editors"]
         # Scoped like every other matcher in this role (was "*":"*" — the
         # only wildcard cluster matcher in the dev tier; least privilege).
         kubernetes_labels = {
@@ -309,7 +375,7 @@ resource "kubectl_manifest" "role_platform_dev_access" {
             roles = ["dev-access", "platform-dev-access"]
           }
         ]
-        kubernetes_groups = ["{{external.kubernetes_groups}}", "system:masters"]
+        kubernetes_groups = ["{{external.kubernetes_groups}}", "teleport-dev-editors"]
         kubernetes_labels = {
           env  = "dev"
           team = "*"
@@ -391,7 +457,7 @@ resource "kubectl_manifest" "role_prod_access" {
             roles = ["prod-access", "prod-access-mfa", "platform-dev-access", "dev-access"]
           }
         ]
-        kubernetes_groups = ["{{external.kubernetes_groups}}", "system:masters"]
+        kubernetes_groups = ["{{external.kubernetes_groups}}", "teleport-prod-editors"]
         kubernetes_labels = {
           env  = "prod"
           team = var.prod_team
@@ -537,6 +603,9 @@ resource "kubectl_manifest" "role_prod_readonly_access" {
         mcp = {
           tools = ["*"]
         }
+        # Was missing entirely — without a kube group the role's kube access
+        # was inert. view-only group, namespace-pinned below.
+        kubernetes_groups = ["teleport-prod-viewers"]
         kubernetes_labels = {
           env  = "prod"
           team = var.prod_team
@@ -785,7 +854,9 @@ resource "kubectl_manifest" "access_list_engineers" {
         { name = var.access_list_owner, description = "Platform lead" }
       ]
       grants = {
-        roles = ["platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "editor", "auditor", "team-access"]
+        # No standing editor (ZSP): reads via config-reader + auditor,
+        # writes JIT via admin-requester → editor.
+        roles = ["platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "auditor", "team-access", "config-reader", "admin-requester"]
         # Engineers hold standing dev-team roles (dev-auto-access,
         # platform-dev-access above), so the list also asserts the dev team
         # affiliation as a trait. Okta separately asserts the HOME team from
