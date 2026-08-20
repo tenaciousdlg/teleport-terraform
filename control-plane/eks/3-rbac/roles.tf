@@ -34,11 +34,13 @@ resource "kubectl_manifest" "saml_connector_okta_preview" {
     }
     spec = {
       acs = "https://${var.proxy_address}/v1/webapi/saml/acs/okta-preview"
-      # Unified pattern: a second IdP maps its groups to the SAME bundle the
-      # engineers access list grants — no standing editor here either;
-      # visiting SEs JIT it via admin-requester like everyone else.
+      # Unified pattern, fully: EVERY IdP maps only to base-user — real
+      # grants come from access lists. This IdP has no SCIM, so membership
+      # of the visiting-ses list below is explicit and owner-reviewed
+      # (the JML story: a visiting SE gets base-user until the owner adds
+      # them to the list).
       attributes_to_roles = [
-        { name = "groups", value = "Solutions-Engineering", roles = ["base-user", "platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "auditor", "team-access", "config-reader", "admin-requester"] }
+        { name = "groups", value = "Solutions-Engineering", roles = ["base-user"] }
       ]
       display                 = "okta preview"
       entity_descriptor_url   = var.okta_preview_metadata_url
@@ -83,6 +85,29 @@ resource "kubectl_manifest" "saml_connector_okta_preview" {
 #     }
 #   })
 # }
+
+# Audit-export bot role — held by the event-handler bot that ships events
+# to fluentd. ADOPTED INTO IaC 2026-08-20 (was tctl-created, un-owned; it is
+# LOAD-BEARING for the audit export). Same one-time adoption dance as the
+# AMRs if recreating: tctl rm roles/event-handler, operator recreates.
+resource "kubectl_manifest" "role_event_handler" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "event-handler"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "Read audit events — impersonated by the event-handler bot (audit export pipeline)"
+    }
+    spec = {
+      allow = {
+        rules = [
+          { resources = ["event"], verbs = ["list", "read"] }
+        ]
+      }
+    }
+  })
+}
 
 # Base user role
 resource "kubectl_manifest" "role_base_user" {
@@ -829,6 +854,13 @@ resource "kubectl_manifest" "access_list_senior_devs" {
       ]
       grants = {
         roles = ["platform-dev-access", "dev-auto-access", "senior-dev-requester", "team-access"]
+        # Cross-team dev breadth expressed through ABAC too: the IdP asserts
+        # senior-devs' home team ("dev"); this grant adds "platform" so
+        # team-access reaches both teams' dev nodes — mirroring
+        # platform-dev-access's team=* intent, but visible/governable here.
+        traits = {
+          "team-name" = ["platform"]
+        }
       }
     }
   })
@@ -866,6 +898,41 @@ resource "kubectl_manifest" "access_list_engineers" {
         # literals, not expressions; applied at next login, never live.
         traits = {
           "team-name" = ["dev"]
+        }
+      }
+    }
+  })
+}
+
+# Non-SCIM identity sources get the SAME governance surface: a regular
+# (owner-reviewed) access list with explicit membership and a recurring
+# audit. Grants the engineers-equivalent bundle + both team affiliations
+# (this IdP asserts no team-name trait). Membership is a runtime action:
+#   tctl acl users add visiting-ses <user>
+resource "kubectl_manifest" "access_list_visiting_ses" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportAccessList"
+    metadata = {
+      name      = "visiting-ses"
+      namespace = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+    }
+    spec = {
+      title       = "visiting-ses"
+      description = "SEs from the secondary IdP (no SCIM) — explicit membership, owner-reviewed quarterly"
+      owners = [
+        { name = var.access_list_owner, description = "Platform lead" }
+      ]
+      audit = {
+        next_audit_date = "2026-11-20T00:00:00Z"
+        recurrence = {
+          frequency = "3months"
+        }
+      }
+      grants = {
+        roles = ["platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "auditor", "team-access", "config-reader", "admin-requester"]
+        traits = {
+          "team-name" = ["platform", "dev"]
         }
       }
     }
