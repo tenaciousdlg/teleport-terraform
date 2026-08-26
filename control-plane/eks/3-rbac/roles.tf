@@ -197,7 +197,11 @@ resource "kubectl_manifest" "role_config_reader" {
               "access_request", "node", "app", "db", "kube_cluster",
               "windows_desktop", "auth_connector", "login_rule", "lock",
               "cluster_auth_preference", "cluster_networking_config",
-              "session_recording_config", "trusted_cluster"
+              "session_recording_config", "trusted_cluster",
+              # MWI read-only (2026-08-26): without these the Bots/Workload
+              # Identity UI pages are hidden entirely. Deliberately NOT
+              # "token" — join tokens carry secrets; writes stay editor-JIT.
+              "bot", "bot_instance", "workload_identity"
             ]
             verbs = ["list", "read"]
           }
@@ -251,14 +255,16 @@ resource "kubectl_manifest" "role_dev_access" {
     }
     spec = {
       allow = {
+        # team matchers are lists: profiles deploy their data plane with
+        # team=platform (TF_VAR_team default), so dev roles must match both.
         app_labels = {
           env  = ["dev"]
-          team = [var.dev_team]
+          team = [var.dev_team, "platform"]
         }
         aws_role_arns = ["{{external.aws_role_arns}}"]
         db_labels = {
           env                      = ["dev"]
-          team                     = [var.dev_team]
+          team                     = [var.dev_team, "platform"]
           "teleport.dev/db-access" = ["mapped"]
         }
         db_names       = ["{{external.db_names}}", "*"]
@@ -296,7 +302,7 @@ resource "kubectl_manifest" "role_dev_access" {
         }
         node_labels = {
           env  = ["dev"]
-          team = [var.dev_team]
+          team = [var.dev_team, "platform"]
         }
         rules = [
           { resources = ["event"], verbs = ["list", "read"] },
@@ -304,12 +310,15 @@ resource "kubectl_manifest" "role_dev_access" {
         ]
         windows_desktop_labels = {
           env  = ["dev"]
-          team = [var.dev_team]
+          team = [var.dev_team, "platform"]
         }
         windows_desktop_logins = ["{{external.windows_logins}}", "{{email.local(external.username)}}"]
       }
       options = {
-        create_db_user                 = true
+        # false since 2026-08-26 — same mapped-DB reasoning as
+        # platform-dev-access; without it bob's --db-user=writer is rejected.
+        create_db_user                 = false
+        create_db_user_mode            = "off"
         create_desktop_user            = true
         create_host_user_mode          = "keep"
         create_host_user_default_shell = "/bin/bash"
@@ -336,7 +345,7 @@ resource "kubectl_manifest" "role_dev_auto_access" {
       allow = {
         db_labels = {
           env                      = ["dev"]
-          team                     = [var.dev_team]
+          team                     = [var.dev_team, "platform"]
           "teleport.dev/db-access" = ["auto"]
         }
         db_names = ["{{external.db_names}}", "*"]
@@ -344,7 +353,7 @@ resource "kubectl_manifest" "role_dev_auto_access" {
         db_users = ["{{email.local(external.username)}}", "{{email.local(external.email)}}"]
         node_labels = {
           env  = ["dev"]
-          team = [var.dev_team]
+          team = [var.dev_team, "platform"]
         }
         host_groups = ["wheel"]
         logins      = ["{{external.logins}}", "{{email.local(external.username)}}", "{{email.local(external.email)}}"]
@@ -429,8 +438,11 @@ resource "kubectl_manifest" "role_platform_dev_access" {
         windows_desktop_logins = ["{{external.windows_logins}}", "{{email.local(external.username)}}"]
       }
       options = {
-        create_db_user                 = true
-        create_db_user_mode            = "keep"
+        # false since 2026-08-26: the self-hosted (mapped) DBs have no
+        # admin_user, so provisioning enforcement blocked reader/writer for
+        # ANYONE holding this role. dev-auto-access remains the auto role.
+        create_db_user                 = false
+        create_db_user_mode            = "off"
         create_desktop_user            = false
         create_host_user_mode          = "keep"
         create_host_user_default_shell = "/bin/bash"
@@ -625,6 +637,9 @@ resource "kubectl_manifest" "role_prod_readonly_access" {
         }
         db_names = ["*"]
         db_users = ["reader", "reporting", "{{external.readonly_db_user}}"]
+        # Without logins this role matched the prod node but granted no SSH
+        # principal — an approved request still ended in access denied.
+        logins = ["{{email.local(external.username)}}", "{{email.local(external.email)}}"]
         mcp = {
           tools = ["*"]
         }
