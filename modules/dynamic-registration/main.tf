@@ -24,6 +24,9 @@ resource "teleport_database" "this" {
     tls = {
       ca_cert = var.ca_cert_chain
     }
+    # Required when db_access_pattern = "auto": the database-side account
+    # Teleport uses to provision per-identity users.
+    admin_user = var.admin_user != "" ? { name = var.admin_user } : null
   }
 }
 

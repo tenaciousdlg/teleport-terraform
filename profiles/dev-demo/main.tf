@@ -230,7 +230,14 @@ module "postgres_registration" {
   protocol      = "postgres"
   uri           = "localhost:5432"
   ca_cert_chain = module.postgres.ca_cert
-  labels        = { env = var.env, team = var.team }
+  # engine label keeps each box's db_service from claiming the OTHER box's
+  # database (uri is localhost — a cross-matched agent shows unhealthy).
+  labels        = { env = var.env, team = var.team, engine = "postgres" }
+  # AUTO tier (2026-08-26): per-identity users provisioned via dev-auto-access;
+  # teleport-admin + reader/writer/dbadmin grantables live in the DB (created
+  # by hand on dev-postgres — fold into userdata-postgres.tpl on next deploy).
+  db_access_pattern = "auto"
+  admin_user        = "teleport-admin"
 }
 
 # ---------------------------------------------------------------------------
@@ -261,7 +268,8 @@ module "mongodb_registration" {
   protocol      = "mongodb"
   uri           = "localhost:27017"
   ca_cert_chain = module.mongodb.ca_cert
-  labels        = { env = var.env, team = var.team }
+  # see postgres_registration — engine label prevents agent cross-matching.
+  labels        = { env = var.env, team = var.team, engine = "mongodb" }
 }
 
 # ---------------------------------------------------------------------------
@@ -411,6 +419,9 @@ module "mcp_registration" {
     env                              = var.env
     team                             = var.team
     "teleport.internal/app-sub-kind" = "mcp"
+    # matched by the mcp box's app_service selector — without it the box
+    # selected on origin:dynamic and claimed grafana/httpbin too.
+    "teleport.dev/app"               = "mcp-filesystem"
   }
   mcp_command          = "docker"
   mcp_args             = ["run", "-i", "--rm", "-v", "/demo-files:/demo-files:ro", "mcp/filesystem", "/demo-files"]

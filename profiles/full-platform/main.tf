@@ -416,6 +416,9 @@ module "mcp_registration" {
     env                              = var.env
     team                             = var.team
     "teleport.internal/app-sub-kind" = "mcp"
+    # matched by the mcp box's app_service selector (see mcp-stdio-app
+    # userdata.tpl) — origin:dynamic previously cross-claimed all apps.
+    "teleport.dev/app"               = "mcp-filesystem"
   }
   mcp_command          = "docker"
   mcp_args             = ["run", "-i", "--rm", "-v", "/demo-files:/demo-files:ro", "mcp/filesystem", "/demo-files"]

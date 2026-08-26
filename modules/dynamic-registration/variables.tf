@@ -91,3 +91,9 @@ variable "db_access_pattern" {
     error_message = "db_access_pattern must be either 'mapped' or 'auto'."
   }
 }
+
+variable "admin_user" {
+  description = "Database admin account for auto user provisioning (db_access_pattern = \"auto\"). Empty disables."
+  type        = string
+  default     = ""
+}
