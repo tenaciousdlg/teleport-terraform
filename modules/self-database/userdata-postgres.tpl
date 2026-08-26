@@ -45,6 +45,16 @@ CREATE ROLE writer LOGIN;
 GRANT ALL PRIVILEGES ON DATABASE postgres TO writer;
 CREATE ROLE reader LOGIN;
 GRANT CONNECT ON DATABASE postgres TO reader;
+-- Auto user provisioning admin (used when the registration sets
+-- admin_user; harmless surplus for mapped-tier deployments).
+CREATE ROLE dbadmin;
+CREATE USER "teleport-admin" LOGIN CREATEROLE;
+GRANT CONNECT ON DATABASE postgres TO "teleport-admin";
+GRANT USAGE ON SCHEMA public TO "teleport-admin";
+GRANT CREATE ON SCHEMA public TO "teleport-admin";
+GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
+GRANT writer TO "teleport-admin" WITH ADMIN OPTION;
+GRANT dbadmin TO "teleport-admin" WITH ADMIN OPTION;
 EOF
 # install teleport
 curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
