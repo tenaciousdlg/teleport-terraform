@@ -11,7 +11,7 @@ dnf install -y mariadb105 jq nmap-ncat
 ########################################################
 # Teleport Installation
 ########################################################
-curl "https://${proxy_address}/scripts/install.sh" | bash
+curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 
 #########################################################
 # Wait for RDS to be available and configure MySQL

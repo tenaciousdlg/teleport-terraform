@@ -47,7 +47,7 @@ CREATE ROLE reader LOGIN;
 GRANT CONNECT ON DATABASE postgres TO reader;
 EOF
 # install teleport
-curl "https://${proxy_address}/scripts/install.sh" | bash
+curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 echo "${token}" > /tmp/token
 # configure teleport
 cat <<EOF > /etc/teleport.yaml

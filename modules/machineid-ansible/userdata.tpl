@@ -11,7 +11,7 @@ pip3 install ansible
 
 # Install Teleport client/agent binaries from the cluster install script.
 # This avoids client/server feature skew during Machine ID onboarding.
-curl "https://${proxy_address}/scripts/install.sh" | bash
+curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 echo "${node_token}" > /tmp/token
 
 # Write teleport.yaml

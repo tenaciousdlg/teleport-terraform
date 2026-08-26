@@ -24,7 +24,7 @@ if ! id -u docker >/dev/null 2>&1; then
 fi
 
 # Install Teleport
-curl "https://${proxy_address}/scripts/install.sh" | bash
+curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 
 # Write token to disk
 echo "${token}" > /tmp/token
@@ -47,7 +47,9 @@ app_service:
     - labels:
         env: "${env}"
         team: "${team}"
-        teleport.dev/origin: "dynamic"
+        # scope to OUR app only — origin:dynamic matched every dynamic app
+        # in the cluster and this box claimed apps it can't reach.
+        teleport.dev/app: "mcp-filesystem"
 ssh_service:
   enabled: true
   labels:

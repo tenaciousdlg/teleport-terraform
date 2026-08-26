@@ -11,7 +11,7 @@ WINDOWS_HOST_NAME=$(echo "${windows_internal_dns}" | awk -F. '{print $1}')
 echo "${token}" > /tmp/token
 
 # install.sh fetched from the proxy installs the cluster-advertised version via teleport-update
-curl "https://${proxy_address}/scripts/install.sh" | bash
+curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 
 # Log installed version for debugging
 teleport --version || true

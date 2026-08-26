@@ -9,7 +9,7 @@ until curl -sf --connect-timeout 5 "https://${proxy_address}/webapi/ping" >/dev/
   sleep 10
 done
 
-curl "https://${proxy_address}/scripts/install.sh" | bash
+curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 
 echo "${token}" > /tmp/token
 

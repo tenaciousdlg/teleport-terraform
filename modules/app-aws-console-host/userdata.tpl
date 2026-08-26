@@ -7,7 +7,7 @@ hostnamectl set-hostname "${name}"
 sudo dnf install -y jq
 
 # Install Teleport from cluster script
-curl "https://${proxy_address}/scripts/install.sh" | bash
+curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 
 # Configure Teleport app+node services
 cat <<EOF_TEL >/etc/teleport.yaml

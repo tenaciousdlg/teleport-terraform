@@ -17,7 +17,7 @@ provisioning = /etc/grafana/provisioning
 
 [server]
 enable_gzip = true
-root_url = https://grafana.${env}.${proxy_address}
+root_url = https://grafana-${env}.${proxy_address}
 
 [security]
 allow_embedding = true
@@ -48,10 +48,13 @@ docker run -d \
   -v /opt/grafana/provisioning:/etc/grafana/provisioning \
   -v /opt/grafana/dashboards:/etc/grafana/dashboards \
   -v /opt/grafana/data:/var/lib/grafana \
-  grafana/grafana
+  grafana/grafana:13.2.0
+  # Pinned 2026-08-26 — an unpinned :latest pull silently upgraded Grafana to
+  # a version that hard-fails on root_url mismatch mid-demo-week. Bump
+  # deliberately, after a deploy test.
 
 # install teleport
-curl "https://${proxy_address}/scripts/install.sh" | bash
+curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 
 cat <<EOF_TEL > /etc/teleport.yaml
 version: v3
