@@ -77,6 +77,7 @@ db_service:
     - labels:
         "env": "${env}"
         "team": "${team}"
+        "engine": "postgres"
 ssh_service:
   enabled: "yes"
   labels:

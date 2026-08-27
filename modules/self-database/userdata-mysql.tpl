@@ -39,6 +39,7 @@ db_service:
     - labels:
         "env": "${env}"
         "team": "${team}"
+        "engine": "mysql"
 auth_service:
   enabled: "no"
 ssh_service:

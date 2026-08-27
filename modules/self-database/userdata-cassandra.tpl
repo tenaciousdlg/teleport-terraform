@@ -129,6 +129,7 @@ db_service:
     - labels:
         "env": "${env}"
         "team": "${team}"
+        "engine": "cassandra"
 auth_service:
   enabled: "no"
 ssh_service:

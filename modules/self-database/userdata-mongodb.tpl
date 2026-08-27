@@ -219,6 +219,7 @@ db_service:
     - labels:
         "env": "${env}"
         "team": "${team}"
+        "engine": "mongodb"
 auth_service:
   enabled: "no"
 ssh_service:

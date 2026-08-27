@@ -16,6 +16,9 @@ resource "teleport_database" "this" {
     labels = merge(var.labels, {
       "teleport.dev/origin"    = "dynamic"
       "teleport.dev/db-access" = var.db_access_pattern
+      # Always stamped so per-engine db agents can scope their selectors to
+      # their own database — env+team selectors cross-claim localhost URIs.
+      "engine" = var.protocol
     })
   }
   spec = {

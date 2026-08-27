@@ -230,9 +230,8 @@ module "postgres_registration" {
   protocol      = "postgres"
   uri           = "localhost:5432"
   ca_cert_chain = module.postgres.ca_cert
-  # engine label keeps each box's db_service from claiming the OTHER box's
-  # database (uri is localhost — a cross-matched agent shows unhealthy).
-  labels        = { env = var.env, team = var.team, engine = "postgres" }
+  # engine label is stamped by dynamic-registration from the protocol.
+  labels        = { env = var.env, team = var.team }
   # AUTO tier (2026-08-26): per-identity users provisioned via dev-auto-access;
   # teleport-admin + reader/writer/dbadmin grantables live in the DB (created
   # by hand on dev-postgres — fold into userdata-postgres.tpl on next deploy).
@@ -268,8 +267,7 @@ module "mongodb_registration" {
   protocol      = "mongodb"
   uri           = "localhost:27017"
   ca_cert_chain = module.mongodb.ca_cert
-  # see postgres_registration — engine label prevents agent cross-matching.
-  labels        = { env = var.env, team = var.team, engine = "mongodb" }
+  labels        = { env = var.env, team = var.team }
 }
 
 # ---------------------------------------------------------------------------
