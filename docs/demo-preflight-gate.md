@@ -29,3 +29,5 @@ every failure flow-level.
 | Operator-owned roles | `tctl edit` gets reverted. Patch the TeleportRole CR or terraform. |
 | First-boot NAT race | Fresh-VPC instances raced the NAT gw and died silently in userdata. Fixed 2026-08-26: install curl now retries. Symptom if it recurs: agent absent from `tctl inventory ls`. |
 | SCIM access lists | Okta owns their membership; tctl member writes are rejected by design. |
+| `terraform -target` | Targeted applies do NOT refresh other modules' cached output values in state — a downstream module can render with a stale upstream output (desktop-service got a dead Windows DNS this way, 2026-08-27). After any targeted replace, finish with a full untargeted apply. |
+| Ephemeral join tokens | Retired 2026-08-27: all AWS agent modules now use the iam join method (cloud-attested, no secret, no TTL). If an agent won't join, check the instance profile is attached — not token expiry. |

@@ -53,17 +53,19 @@ resource "random_string" "agent_token" {
   special = false
 }
 
+# iam join: static allow-rule token — instance identity attested via signed
+# sts:GetCallerIdentity. No secret, no TTL, replacement-safe (the 8h token +
+# ignore_changes pattern orphaned replacement instances; see modules/iam-join).
 resource "teleport_provision_token" "agent" {
   version = "v2"
-  spec = {
-    roles = ["Node", "Discovery"]
-    name  = random_string.agent_token.result
-  }
   metadata = {
-    expires = timeadd(timestamp(), "8h")
+    name        = "iam-ec2-discovery-${random_string.token.result}"
+    description = "iam join (ec2-discovery)"
   }
-  lifecycle {
-    ignore_changes = [metadata]
+  spec = {
+    roles       = ["Node", "Discovery"]
+    join_method = "iam"
+    allow       = [{ aws_arn = "arn:aws:sts::${data.aws_caller_identity.current.account_id}:assumed-role/${aws_iam_role.agent.name}/*" }]
   }
 }
 

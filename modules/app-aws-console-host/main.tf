@@ -56,19 +56,19 @@ resource "random_string" "token" {
   special = false
 }
 
+# iam join: static allow-rule token — instance identity attested via signed
+# sts:GetCallerIdentity. No secret, no TTL, replacement-safe (the 8h token +
+# ignore_changes pattern orphaned replacement instances; see modules/iam-join).
 resource "teleport_provision_token" "app_host" {
   version = "v2"
   metadata = {
-    expires = timeadd(timestamp(), "8h")
+    name        = "iam-app-aws-console-host-${random_string.token.result}"
+    description = "iam join (app-aws-console-host)"
   }
   spec = {
-    roles = ["App", "Node"]
-    name  = random_string.token.result
-  }
-  # timestamp() changes on every plan, causing perpetual drift noise.
-  # The token only needs to live long enough for the instance to boot and register.
-  lifecycle {
-    ignore_changes = [metadata]
+    roles       = ["App", "Node"]
+    join_method = "iam"
+    allow       = [{ aws_arn = "arn:aws:sts::${data.aws_caller_identity.current.account_id}:assumed-role/${aws_iam_role.app_host.name}/*" }]
   }
 }
 
@@ -120,3 +120,5 @@ resource "aws_instance" "app_host" {
     Name = "${local.user}-${var.host_env}-aws-console-host"
   })
 }
+
+data "aws_caller_identity" "current" {}

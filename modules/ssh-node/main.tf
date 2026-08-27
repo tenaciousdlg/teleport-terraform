@@ -21,19 +21,20 @@ resource "random_string" "token" {
   special = false
 }
 
+# iam join: a static allow-rule token — the instance proves itself with a
+# signed sts:GetCallerIdentity under the shared join role. No secret, no
+# TTL, replacement-safe (the 8h ephemeral token silently orphaned any
+# instance replaced >8h after apply — see modules/iam-join).
 resource "teleport_provision_token" "agent" {
   version = "v2"
-  spec = {
-    roles = ["Node"]
-    name  = random_string.token.result
-  }
   metadata = {
-    expires = timeadd(timestamp(), "8h")
+    name        = "iam-node-${random_string.token.result}"
+    description = "iam join for ssh-node agents"
   }
-  # timestamp() changes on every plan, causing perpetual drift noise.
-  # The token only needs to live long enough for the instance to boot and register.
-  lifecycle {
-    ignore_changes = [metadata]
+  spec = {
+    roles       = ["Node"]
+    join_method = "iam"
+    allow       = [{ aws_arn = var.join_arn_pattern }]
   }
 }
 
@@ -43,6 +44,7 @@ resource "aws_instance" "ssh_node" {
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
   vpc_security_group_ids = var.security_group_ids
+  iam_instance_profile   = var.instance_profile_name
   # Teleport nodes register via outbound reverse tunnel — no public IP needed.
   associate_public_ip_address = null
 

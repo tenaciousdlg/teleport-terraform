@@ -27,14 +27,15 @@ fi
 curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
 
 # Write token to disk
-echo "${token}" > /tmp/token
 
 # Configure Teleport Application Service with MCP stdio server
 cat <<EOF_TEL > /etc/teleport.yaml
 version: v3
 teleport:
   data_dir: "/var/lib/teleport"
-  auth_token: "/tmp/token"
+  join_params:
+    method: iam
+    token_name: ${token}
   proxy_server: ${proxy_address}:443
   log:
     output: stderr

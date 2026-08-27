@@ -131,7 +131,9 @@ data "http" "teleport_db_ca" {
 # Server Access: SSH nodes.
 # ---------------------------------------------------------------------------
 module "ssh_nodes" {
-  source = "../../modules/ssh-node"
+  source                = "../../modules/ssh-node"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -151,7 +153,9 @@ module "ssh_nodes" {
 # Database Access: self-hosted PostgreSQL.
 # ---------------------------------------------------------------------------
 module "postgres" {
-  source = "../../modules/self-database"
+  source                = "../../modules/self-database"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   db_type          = "postgres"
   env              = var.env
@@ -182,7 +186,9 @@ module "postgres_registration" {
 # Database Access: self-hosted MongoDB.
 # ---------------------------------------------------------------------------
 module "mongodb" {
-  source = "../../modules/self-database"
+  source                = "../../modules/self-database"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   db_type          = "mongodb"
   env              = var.env
@@ -232,7 +238,9 @@ module "rds_mysql" {
 # Application Access: Grafana + HTTPBin + AWS Console.
 # ---------------------------------------------------------------------------
 module "grafana" {
-  source = "../../modules/app-grafana"
+  source                = "../../modules/app-grafana"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -260,7 +268,9 @@ module "grafana_registration" {
 }
 
 module "httpbin" {
-  source = "../../modules/app-httpbin"
+  source                = "../../modules/app-httpbin"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -288,7 +298,9 @@ module "httpbin_registration" {
 }
 
 module "demo_panel" {
-  source = "../../modules/app-demo-panel"
+  source                = "../../modules/app-demo-panel"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -359,7 +371,9 @@ module "windows_instance" {
 }
 
 module "desktop_service" {
-  source = "../../modules/desktop-service"
+  source                = "../../modules/desktop-service"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -390,7 +404,9 @@ resource "random_string" "bot_suffix" {
 }
 
 module "mcp_app" {
-  source = "../../modules/mcp-stdio-app"
+  source                = "../../modules/mcp-stdio-app"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -418,7 +434,7 @@ module "mcp_registration" {
     "teleport.internal/app-sub-kind" = "mcp"
     # matched by the mcp box's app_service selector (see mcp-stdio-app
     # userdata.tpl) — origin:dynamic previously cross-claimed all apps.
-    "teleport.dev/app"               = "mcp-filesystem"
+    "teleport.dev/app" = "mcp-filesystem"
   }
   mcp_command          = "docker"
   mcp_args             = ["run", "-i", "--rm", "-v", "/demo-files:/demo-files:ro", "mcp/filesystem", "/demo-files"]
@@ -438,4 +454,11 @@ module "mcp_bot" {
     "teleport.internal/app-sub-kind" = ["mcp"]
   }
   mcp_tools = ["*"]
+}
+
+# Shared iam-join identity: agents join via cloud-attested identity — no
+# join secrets, no token TTLs (see modules/iam-join).
+module "iam_join" {
+  source = "../../modules/iam-join"
+  name   = "full-platform"
 }

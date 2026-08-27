@@ -158,7 +158,9 @@ data "http" "teleport_db_ca" {
 # ssh-node module's teleport.yaml — no static accounts needed on the host.
 # ---------------------------------------------------------------------------
 module "ssh_nodes_dev" {
-  source = "../../modules/ssh-node"
+  source                = "../../modules/ssh-node"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -185,7 +187,9 @@ module "ssh_nodes_dev" {
 #   ($USER locks the session from the Teleport UI)
 # ---------------------------------------------------------------------------
 module "ssh_node_prod" {
-  source = "../../modules/ssh-node"
+  source                = "../../modules/ssh-node"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.prod_env
   team             = var.team
@@ -206,7 +210,9 @@ module "ssh_node_prod" {
 # Teleport issues short-lived client certs — no DB passwords stored anywhere.
 # ---------------------------------------------------------------------------
 module "postgres" {
-  source = "../../modules/self-database"
+  source                = "../../modules/self-database"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   db_type          = "postgres"
   env              = var.env
@@ -231,7 +237,7 @@ module "postgres_registration" {
   uri           = "localhost:5432"
   ca_cert_chain = module.postgres.ca_cert
   # engine label is stamped by dynamic-registration from the protocol.
-  labels        = { env = var.env, team = var.team }
+  labels = { env = var.env, team = var.team }
   # AUTO tier (2026-08-26): per-identity users provisioned via dev-auto-access;
   # teleport-admin + reader/writer/dbadmin grantables live in the DB (created
   # by hand on dev-postgres — fold into userdata-postgres.tpl on next deploy).
@@ -243,7 +249,9 @@ module "postgres_registration" {
 # Database Access: self-hosted MongoDB (dev).
 # ---------------------------------------------------------------------------
 module "mongodb" {
-  source = "../../modules/self-database"
+  source                = "../../modules/self-database"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   db_type          = "mongodb"
   env              = var.env
@@ -276,7 +284,9 @@ module "mongodb_registration" {
 # user's identity without requiring a separate Grafana login.
 # ---------------------------------------------------------------------------
 module "grafana" {
-  source = "../../modules/app-grafana"
+  source                = "../../modules/app-grafana"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -309,7 +319,9 @@ module "grafana_registration" {
 # (X-Forwarded-User, Teleport-Jwt-Assertion, etc.) in raw form.
 # ---------------------------------------------------------------------------
 module "httpbin" {
-  source = "../../modules/app-httpbin"
+  source                = "../../modules/app-httpbin"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -356,7 +368,9 @@ module "windows_instance" {
 }
 
 module "desktop_service" {
-  source = "../../modules/desktop-service"
+  source                = "../../modules/desktop-service"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -391,7 +405,9 @@ resource "random_string" "bot_suffix" {
 }
 
 module "mcp_app" {
-  source = "../../modules/mcp-stdio-app"
+  source                = "../../modules/mcp-stdio-app"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -419,7 +435,7 @@ module "mcp_registration" {
     "teleport.internal/app-sub-kind" = "mcp"
     # matched by the mcp box's app_service selector — without it the box
     # selected on origin:dynamic and claimed grafana/httpbin too.
-    "teleport.dev/app"               = "mcp-filesystem"
+    "teleport.dev/app" = "mcp-filesystem"
   }
   mcp_command          = "docker"
   mcp_args             = ["run", "-i", "--rm", "-v", "/demo-files:/demo-files:ro", "mcp/filesystem", "/demo-files"]
@@ -458,4 +474,11 @@ module "ansible" {
 
   subnet_id          = module.network.subnet_id
   security_group_ids = [module.network.security_group_id]
+}
+
+# Shared iam-join identity: agents join via cloud-attested identity — no
+# join secrets, no token TTLs (see modules/iam-join).
+module "iam_join" {
+  source = "../../modules/iam-join"
+  name   = "dev-demo"
 }

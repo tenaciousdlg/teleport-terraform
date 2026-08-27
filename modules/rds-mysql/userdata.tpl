@@ -108,13 +108,14 @@ fi
 #########################################################
 # Teleport Configuration
 #########################################################
-echo "${token}" > /tmp/token
 cat <<EOF > /etc/teleport.yaml
 version: v3
 teleport:
   data_dir: "/var/lib/teleport"
   proxy_server: "${proxy_address}:443"
-  auth_token: /tmp/token
+  join_params:
+    method: iam
+    token_name: ${token}
   log:
     output: stderr
     severity: INFO

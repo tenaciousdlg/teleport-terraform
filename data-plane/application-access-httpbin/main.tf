@@ -54,16 +54,18 @@ module "network" {
 }
 
 module "httpbin_app" {
-  source             = "../../modules/app-httpbin"
-  env                = var.env
-  user               = var.user
-  team               = var.team
-  proxy_address      = var.proxy_address
-  teleport_version   = var.teleport_version
-  ami_id             = data.aws_ami.linux.id
-  instance_type      = "t3.micro"
-  subnet_id          = module.network.subnet_id
-  security_group_ids = [module.network.security_group_id]
+  source                = "../../modules/app-httpbin"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
+  env                   = var.env
+  user                  = var.user
+  team                  = var.team
+  proxy_address         = var.proxy_address
+  teleport_version      = var.teleport_version
+  ami_id                = data.aws_ami.linux.id
+  instance_type         = "t3.micro"
+  subnet_id             = module.network.subnet_id
+  security_group_ids    = [module.network.security_group_id]
 
   depends_on = [module.network]
 }
@@ -85,4 +87,11 @@ module "httpbin_registration" {
     "Origin: https://httpbin-${var.env}.${var.proxy_address}"
   ]
   insecure_skip_verify = true
+}
+
+# Shared iam-join identity: agents join via cloud-attested identity — no
+# join secrets, no token TTLs (see modules/iam-join).
+module "iam_join" {
+  source = "../../modules/iam-join"
+  name   = "application-access-httpbin"
 }

@@ -22,19 +22,19 @@ resource "random_string" "token" {
   special = false
 }
 
+# iam join: static allow-rule token — instance identity attested via signed
+# sts:GetCallerIdentity. No secret, no TTL, replacement-safe (the 8h token +
+# ignore_changes pattern orphaned replacement instances; see modules/iam-join).
 resource "teleport_provision_token" "app" {
   version = "v2"
   metadata = {
-    expires = timeadd(timestamp(), "8h")
-    name    = random_string.token.result
+    name        = "iam-mcp-${random_string.token.result}"
+    description = "iam join (mcp)"
   }
   spec = {
-    roles = ["App", "Node"]
-  }
-  # timestamp() changes on every plan, causing perpetual drift noise.
-  # The token only needs to live long enough for the instance to boot and register.
-  lifecycle {
-    ignore_changes = [metadata]
+    roles       = ["App", "Node"]
+    join_method = "iam"
+    allow       = [{ aws_arn = var.join_arn_pattern }]
   }
 }
 
@@ -45,6 +45,7 @@ resource "aws_instance" "mcp_app" {
   # Teleport nodes register via outbound reverse tunnel — no public IP needed.
   associate_public_ip_address = null
   vpc_security_group_ids      = var.security_group_ids
+  iam_instance_profile        = var.instance_profile_name
 
   user_data = templatefile("${path.module}/userdata.tpl", {
     name             = "${var.env}-${var.app_name}"

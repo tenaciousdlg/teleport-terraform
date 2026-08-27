@@ -66,19 +66,21 @@ module "network" {
 }
 
 module "cassandra_instance" {
-  source             = "../../modules/self-database"
-  db_type            = "cassandra"
-  db_hostname        = "cassandra.dev.internal"
-  env                = var.env
-  user               = var.user
-  team               = var.team
-  proxy_address      = var.proxy_address
-  teleport_version   = var.teleport_version
-  teleport_db_ca     = data.http.teleport_db_ca_cert.response_body
-  ami_id             = data.aws_ami.linux.id
-  instance_type      = "t3.medium"
-  subnet_id          = module.network.subnet_id
-  security_group_ids = [module.network.security_group_id]
+  source                = "../../modules/self-database"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
+  db_type               = "cassandra"
+  db_hostname           = "cassandra.dev.internal"
+  env                   = var.env
+  user                  = var.user
+  team                  = var.team
+  proxy_address         = var.proxy_address
+  teleport_version      = var.teleport_version
+  teleport_db_ca        = data.http.teleport_db_ca_cert.response_body
+  ami_id                = data.aws_ami.linux.id
+  instance_type         = "t3.medium"
+  subnet_id             = module.network.subnet_id
+  security_group_ids    = [module.network.security_group_id]
 
   depends_on = [module.network]
 }
@@ -95,4 +97,11 @@ module "cassandra_registration" {
     env  = var.env
     team = var.team
   }
+}
+
+# Shared iam-join identity: agents join via cloud-attested identity — no
+# join secrets, no token TTLs (see modules/iam-join).
+module "iam_join" {
+  source = "../../modules/iam-join"
+  name   = "database-access-cassandra-self-managed"
 }

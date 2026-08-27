@@ -199,7 +199,6 @@ chown -R mongod:mongod /var/log/mongodb
 
 # Install Teleport
 curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
-echo "${token}" > /tmp/token
 
 # Write teleport.yaml
 cat > /etc/teleport.yaml <<EOF
@@ -207,7 +206,9 @@ version: v3
 teleport:
   data_dir: "/var/lib/teleport"
   proxy_server: "${proxy_address}:443"
-  auth_token: /tmp/token
+  join_params:
+    method: iam
+    token_name: ${token}
   log:
     output: stderr
     severity: INFO

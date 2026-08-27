@@ -20,7 +20,9 @@ cat <<EOF_TEL > /etc/teleport.yaml
 version: v3
 teleport:
   data_dir: "/var/lib/teleport"
-  auth_token: "/tmp/token"
+  join_params:
+    method: iam
+    token_name: ${token}
   proxy_server: ${proxy_address}:443
   log:
     output: stderr
@@ -43,7 +45,6 @@ proxy_service:
 EOF_TEL
 
 # Write token to disk
-echo "${token}" > /tmp/token
 # Enable and start Teleport
 systemctl enable teleport
 systemctl restart teleport

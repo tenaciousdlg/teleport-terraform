@@ -43,17 +43,19 @@ resource "random_string" "token" {
   special = false
 }
 
+# iam join: static allow-rule token — instance identity attested via signed
+# sts:GetCallerIdentity. No secret, no TTL, replacement-safe (the 8h token +
+# ignore_changes pattern orphaned replacement instances; see modules/iam-join).
 resource "teleport_provision_token" "agent" {
   version = "v2"
-  spec = {
-    roles = ["Node", "Kube", "Discovery"]
-    name  = random_string.token.result
-  }
   metadata = {
-    expires = timeadd(timestamp(), "24h")
+    name        = "iam-kube-discovery-${random_string.token.result}"
+    description = "iam join (kube-discovery)"
   }
-  lifecycle {
-    ignore_changes = [metadata]
+  spec = {
+    roles       = ["Node", "Kube", "Discovery"]
+    join_method = "iam"
+    allow       = [{ aws_arn = "arn:aws:sts::${data.aws_caller_identity.current.account_id}:assumed-role/${aws_iam_role.agent.name}/*" }]
   }
 }
 
@@ -169,3 +171,5 @@ resource "aws_instance" "agent" {
   # Ensure the provision token exists in Teleport before the instance boots.
   depends_on = [teleport_provision_token.agent]
 }
+
+data "aws_caller_identity" "current" {}

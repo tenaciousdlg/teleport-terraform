@@ -61,7 +61,9 @@ module "network" {
 }
 
 module "mcp_stdio_app" {
-  source = "../../modules/mcp-stdio-app"
+  source                = "../../modules/mcp-stdio-app"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   user             = var.user
@@ -110,4 +112,11 @@ module "machineid_bot" {
     "teleport.internal/app-sub-kind" = ["mcp"]
   }
   mcp_tools = ["*"]
+}
+
+# Shared iam-join identity: agents join via cloud-attested identity — no
+# join secrets, no token TTLs (see modules/iam-join).
+module "iam_join" {
+  source = "../../modules/iam-join"
+  name   = "machine-id-mcp"
 }

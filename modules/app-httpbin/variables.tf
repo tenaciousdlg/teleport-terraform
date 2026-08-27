@@ -49,3 +49,12 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+variable "instance_profile_name" {
+  description = "IAM instance profile for the iam join method (modules/iam-join)"
+  type        = string
+}
+
+variable "join_arn_pattern" {
+  description = "aws_arn allow rule for the iam join token (iam-join output joined_arn_pattern)"
+  type        = string
+}

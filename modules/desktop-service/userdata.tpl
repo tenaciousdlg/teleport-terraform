@@ -8,7 +8,6 @@ hostnamectl set-hostname "${name}"
 WINDOWS_HOST_NAME=$(echo "${windows_internal_dns}" | awk -F. '{print $1}')
 
 # Install Teleport
-echo "${token}" > /tmp/token
 
 # install.sh fetched from the proxy installs the cluster-advertised version via teleport-update
 curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
@@ -20,7 +19,9 @@ sudo cat << EOF > /etc/teleport.yaml
 version: v3
 teleport:
   data_dir: "/var/lib/teleport"
-  auth_token: /tmp/token
+  join_params:
+    method: iam
+    token_name: ${token}
   proxy_server: ${proxy_address}:443
   log:
     output: stderr

@@ -104,7 +104,9 @@ module "network" {
 # Grafana: internal dashboard — good for JWT demo.
 # ---------------------------------------------------------------------------
 module "grafana" {
-  source = "../../modules/app-grafana"
+  source                = "../../modules/app-grafana"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -139,7 +141,9 @@ module "grafana_registration" {
 # HTTPBin: instant header/JWT inspection.
 # ---------------------------------------------------------------------------
 module "httpbin" {
-  source = "../../modules/app-httpbin"
+  source                = "../../modules/app-httpbin"
+  instance_profile_name = module.iam_join.instance_profile_name
+  join_arn_pattern      = module.iam_join.joined_arn_pattern
 
   env              = var.env
   team             = var.team
@@ -213,4 +217,11 @@ module "aws_console_host" {
 
   subnet_id          = module.network.subnet_id
   security_group_ids = [module.network.security_group_id]
+}
+
+# Shared iam-join identity: agents join via cloud-attested identity — no
+# join secrets, no token TTLs (see modules/iam-join).
+module "iam_join" {
+  source = "../../modules/iam-join"
+  name   = "cloud-native-apps"
 }

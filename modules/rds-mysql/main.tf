@@ -147,14 +147,18 @@ resource "random_string" "token" {
   special = false
 }
 
+# iam join: static allow-rule token attested by the instance's own RDS role
+# — no secret, no TTL, replacement-safe (see modules/iam-join).
 resource "teleport_provision_token" "db" {
   version = "v2"
-  spec = {
-    roles = ["Db", "Node"]
-    name  = random_string.token.result
-  }
   metadata = {
-    expires = timeadd(timestamp(), "1h")
+    name        = "iam-rds-mysql-${random_string.token.result}"
+    description = "iam join (rds-mysql)"
+  }
+  spec = {
+    roles       = ["Db", "Node"]
+    join_method = "iam"
+    allow       = [{ aws_arn = "arn:aws:sts::${data.aws_caller_identity.current.account_id}:assumed-role/${aws_iam_role.ec2_rds_role.name}/*" }]
   }
 }
 

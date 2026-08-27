@@ -9,12 +9,13 @@ dnf install -y audit nginx
 systemctl enable --now auditd
 
 curl -fsS --connect-timeout 10 --retry 10 --retry-connrefused --retry-delay 6 "https://${proxy_address}/scripts/install.sh" | bash
-echo "${token}" > /tmp/token
 
 cat<<EOF >/etc/teleport.yaml
 version: v3
 teleport:
-  auth_token: /tmp/token
+  join_params:
+    method: iam
+    token_name: ${token}
   proxy_server: ${proxy_address}:443
   data_dir: /var/lib/teleport
   log:
