@@ -646,6 +646,12 @@ resource "kubectl_manifest" "role_prod_readonly_access" {
         azure_identities = [
           "/subscriptions/060a97ea-3a57-4218-9be5-dba3f19ff2b5/resourcegroups/rg-dlg-teleport-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"
         ]
+        # GCP CLI tie-in (2026-08-27): project Viewer via impersonated SA.
+        # NOTE: identities/SAs are baked into the user cert at login — role
+        # changes here need a tsh logout/login to take effect.
+        gcp_service_accounts = [
+          "teleport-vm-viewer@weighty-planet-305123.iam.gserviceaccount.com"
+        ]
         mcp = {
           tools = ["*"]
         }
