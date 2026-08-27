@@ -640,6 +640,12 @@ resource "kubectl_manifest" "role_prod_readonly_access" {
         # Without logins this role matched the prod node but granted no SSH
         # principal — an approved request still ended in access denied.
         logins = ["{{email.local(external.username)}}", "{{email.local(external.email)}}"]
+        # Cloud CLI tie-in (2026-08-27): elevation to this role unlocks the
+        # Azure demo identity (Reader on rg-dlg-teleport-demo). CLI-only —
+        # Teleport has no Azure Portal federation.
+        azure_identities = [
+          "/subscriptions/060a97ea-3a57-4218-9be5-dba3f19ff2b5/resourcegroups/rg-dlg-teleport-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"
+        ]
         mcp = {
           tools = ["*"]
         }

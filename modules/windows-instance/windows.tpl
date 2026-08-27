@@ -36,9 +36,17 @@ try {
     Write-Host "Testing connectivity to Teleport domain: $Domain"
     Write-EventLog -LogName "Application" -Source "TeleportSetup" -EventId 1003 -EntryType Information -Message "Testing network connectivity to $Domain"
     
-    $testConnection = Test-NetConnection -ComputerName $Domain -Port 443
-    if (-not $testConnection.TcpTestSucceeded) {
-        Write-EventLog -LogName "Application" -Source "TeleportSetup" -EventId 9001 -EntryType Error -Message "Failed to connect to $Domain on port 443"
+    # Retry: at first boot this can race a freshly-created NAT gateway; a
+    # one-shot test threw and killed the whole setup (no CA install, NLA
+    # left on -> "server requires Enhanced RDP Security with CredSSP").
+    $connected = $false
+    for ($i = 1; $i -le 20; $i++) {
+        $testConnection = Test-NetConnection -ComputerName $Domain -Port 443 -WarningAction SilentlyContinue
+        if ($testConnection.TcpTestSucceeded) { $connected = $true; break }
+        Start-Sleep -Seconds 15
+    }
+    if (-not $connected) {
+        Write-EventLog -LogName "Application" -Source "TeleportSetup" -EventId 9001 -EntryType Error -Message "Failed to connect to $Domain on port 443 after 20 attempts"
         throw "Cannot reach $Domain on port 443"
     }
     
@@ -50,7 +58,10 @@ try {
     $certUrl = "https://$Domain/webapi/auth/export?type=windows"
     
     Write-EventLog -LogName "Application" -Source "TeleportSetup" -EventId 1005 -EntryType Information -Message "Downloading certificate from $certUrl"
-    Invoke-WebRequest -Uri $certUrl -OutFile $certPath -UseBasicParsing
+    for ($i = 1; $i -le 10; $i++) {
+        try { Invoke-WebRequest -Uri $certUrl -OutFile $certPath -UseBasicParsing; break }
+        catch { if ($i -eq 10) { throw }; Start-Sleep -Seconds 6 }
+    }
     
     if (Test-Path $certPath) {
         $certSize = (Get-Item $certPath).Length
@@ -67,7 +78,10 @@ try {
     $installerUrl = "https://cdn.teleport.dev/$installerName"
     
     Write-EventLog -LogName "Application" -Source "TeleportSetup" -EventId 1007 -EntryType Information -Message "Downloading installer from $installerUrl"
-    Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+    for ($i = 1; $i -le 10; $i++) {
+        try { Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing; break }
+        catch { if ($i -eq 10) { throw }; Start-Sleep -Seconds 6 }
+    }
     
     if (Test-Path $installerPath) {
         $installerSize = (Get-Item $installerPath).Length
