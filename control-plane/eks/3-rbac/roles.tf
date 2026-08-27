@@ -644,7 +644,9 @@ resource "kubectl_manifest" "role_prod_readonly_access" {
         # Azure demo identity (Reader on rg-dlg-teleport-demo). CLI-only —
         # Teleport has no Azure Portal federation.
         azure_identities = [
-          "/subscriptions/060a97ea-3a57-4218-9be5-dba3f19ff2b5/resourcegroups/rg-dlg-teleport-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"
+          # camelCase resourceGroups — must match the azurerm-emitted resource
+          # ID from profiles/cloud-cli (az CLI emits lowercase; forms differ).
+          "/subscriptions/060a97ea-3a57-4218-9be5-dba3f19ff2b5/resourceGroups/rg-dlg-teleport-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure"
         ]
         # GCP CLI tie-in (2026-08-27): project Viewer via impersonated SA.
         # NOTE: identities/SAs are baked into the user cert at login — role
