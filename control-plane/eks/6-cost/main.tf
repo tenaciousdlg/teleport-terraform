@@ -44,11 +44,11 @@ locals {
   region       = "us-east-2"
   cluster_name = "presales-cluster"
   # Re-derive after nodegroup recreation: aws eks list-nodegroups --cluster-name presales-cluster
-  spot_nodegroup   = "presales-group-spot-20260710183718020200000008"
-  console_host_id  = "i-03c2dc6097c2079ad" # dlg-prod-aws-console-host
-  schedule_tz      = "America/Chicago"
-  down_cron        = "cron(0 20 * * ? *)"      # daily 20:00
-  up_cron          = "cron(45 7 ? * MON-FRI *)" # weekday mornings
+  spot_nodegroup  = "presales-group-spot-20260710183718020200000008"
+  console_host_id = "i-03c2dc6097c2079ad" # dlg-prod-aws-console-host
+  schedule_tz     = "America/Chicago"
+  down_cron       = "cron(0 20 * * ? *)"       # daily 20:00
+  up_cron         = "cron(45 7 ? * MON-FRI *)" # weekday mornings
 }
 
 data "aws_caller_identity" "current" {}
