@@ -201,7 +201,10 @@ resource "kubectl_manifest" "role_config_reader" {
               # MWI read-only (2026-08-26): without these the Bots/Workload
               # Identity UI pages are hidden entirely. Deliberately NOT
               # "token" — join tokens carry secrets; writes stay editor-JIT.
-              "bot", "bot_instance", "workload_identity"
+              "bot", "bot_instance", "workload_identity",
+              # Managed-updates visibility (2026-08-28): watch client/agent
+              # rollouts without JIT-ing editor.
+              "autoupdate_config", "autoupdate_version", "autoupdate_agent_rollout"
             ]
             verbs = ["list", "read"]
           }
