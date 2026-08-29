@@ -79,11 +79,13 @@ resource "teleport_provision_token" "db" {
 }
 
 resource "aws_instance" "db" {
-  ami                  = var.ami_id
-  instance_type        = var.instance_type
-  subnet_id            = var.subnet_id
-  security_groups      = var.security_group_ids
-  iam_instance_profile = var.instance_profile_name
+  ami           = var.ami_id
+  instance_type = var.instance_type
+  subnet_id     = var.subnet_id
+  # security_groups is the EC2-Classic/default-VPC (name-based) attribute; on
+  # VPC instances it refreshes as [] and forces replacement on every plan.
+  vpc_security_group_ids = var.security_group_ids
+  iam_instance_profile   = var.instance_profile_name
   # Teleport nodes register via outbound reverse tunnel — no public IP needed.
   associate_public_ip_address = null
 
