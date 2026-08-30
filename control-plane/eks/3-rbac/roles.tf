@@ -992,9 +992,13 @@ resource "kubectl_manifest" "autoupdate_config" {
         schedules = {
           regular = [
             {
-              name       = "default"
-              days       = ["Mon", "Tue", "Wed", "Thu", "Fri"]
-              start_hour = 2
+              name = "default"
+              days = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+              # start_hour is UTC. 13:00 UTC = 08:00 CT: after the 07:45
+              # cost-scheduler wake, before demo hours. The original 02:00 UTC
+              # (21:00 CT) sat inside the nightly scale-down, so no agent —
+              # cluster included — was ever awake for a scheduled rollout.
+              start_hour = 13
             }
           ]
         }
