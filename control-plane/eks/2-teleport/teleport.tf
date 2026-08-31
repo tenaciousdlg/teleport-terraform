@@ -97,7 +97,29 @@ resource "helm_release" "teleport_cluster" {
       # the Connect authorize call arriving via a different node fails with
       # "invalid device web token" (IP mismatch, root-caused 2026-08-15).
       # Applied live via kubectl patch 2026-08-17; this keeps rebuilds correct.
-      service        = { spec = { externalTrafficPolicy = "Local" } }
+      service = { spec = { externalTrafficPolicy = "Local" } }
+      # Both proxy replicas co-schedule onto one node during the nightly
+      # scale-down and stay stacked when the morning nodes return, leaving 1/3
+      # NLB frontends healthy under externalTrafficPolicy=Local — clients that
+      # draw a dead frontend from DNS hang (root-caused 2026-08-31 by
+      # demo-sentinel's first full run; tbot renewal was the first casualty).
+      # The chart's default SOFT spread constraints ARE on the deployment but
+      # lose to resource scoring every morning: the emptiest node is always
+      # the newest node, so both pods chase it (observed twice on 2026-08-31,
+      # including a fresh rollout with all 3 nodes up). Hard DoNotSchedule
+      # spread fixes it declaratively and self-heals the nightly cycle: the
+      # second replica sits Pending overnight (cluster is asleep anyway) and
+      # schedules the moment the morning node exists. matchLabelKeys scopes
+      # this shared value per-component+ReplicaSet, so auth@1 is unaffected
+      # (skew on a 1-replica set is trivially satisfied) and rollout surges
+      # don't false-violate against the outgoing ReplicaSet.
+      topologySpreadConstraints = [{
+        maxSkew           = 1
+        topologyKey       = "kubernetes.io/hostname"
+        whenUnsatisfiable = "DoNotSchedule"
+        labelSelector     = { matchLabels = { "app.kubernetes.io/name" = "teleport-cluster", "app.kubernetes.io/instance" = "teleport-cluster" } }
+        matchLabelKeys    = ["app.kubernetes.io/component", "pod-template-hash"]
+      }]
       serviceAccount = { create = false, name = "teleport-cluster" }
       auth           = { serviceAccount = { create = false, name = "teleport-cluster" }, teleportConfig = local.auth_teleport_config }
       proxy          = { serviceAccount = { create = false, name = "teleport-cluster-proxy" } }
