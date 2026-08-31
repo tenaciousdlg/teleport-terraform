@@ -124,6 +124,19 @@ module "eks_blueprints_addons" {
     }
     vpc-cni = {
       most_recent = true
+      # Prefix delegation lifts the ENI-based max-pods ceiling (t3.medium:
+      # 17 -> ~110). Added 2026-08-31: the on-demand node hit "Too many
+      # pods" at 38% CPU/mem during a proxy rollout (2-teleport replicas=3),
+      # deadlocking its PVC-pinned singletons (event-handler). Verification
+      # plan: the nightly scaling recycles the spot nodes — if tomorrow's
+      # fresh nodes still report pods capacity 17, the managed node groups
+      # need an explicit kubelet max-pods bump too (docs ambiguous; verify
+      # empirically before adding config here).
+      configuration_values = jsonencode({
+        env = {
+          ENABLE_PREFIX_DELEGATION = "true"
+        }
+      })
     }
     kube-proxy = {
       most_recent = true

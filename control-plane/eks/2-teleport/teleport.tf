@@ -122,9 +122,25 @@ resource "helm_release" "teleport_cluster" {
       }]
       serviceAccount = { create = false, name = "teleport-cluster" }
       auth           = { serviceAccount = { create = false, name = "teleport-cluster" }, teleportConfig = local.auth_teleport_config }
-      proxy          = { serviceAccount = { create = false, name = "teleport-cluster-proxy" } }
-      operator       = { enabled = true, serviceAccount = { create = false, name = "teleport-cluster-operator" } }
-      chartMode      = "aws"
+      # 3 replicas = one proxy per AZ node, so every NLB frontend serves a
+      # LOCAL target. Mechanism (found 2026-08-31 via sentinel flaps): with
+      # client-IP preservation + cross-zone both on, flows from one client
+      # via multiple frontend IPs can collide in the target's conntrack and
+      # drop SYNs (documented NLB behavior). Morning worst case: both
+      # replicas on one node -> all 3 frontends cross-zoned into 1 target ->
+      # sustained "dead frontend" symptoms. Local-target-per-AZ makes
+      # cross-zone failover-only and the collisions disappear. Resource
+      # requests/limits keep 3 proxies polite tenants on small nodes.
+      proxy = {
+        serviceAccount   = { create = false, name = "teleport-cluster-proxy" }
+        highAvailability = { replicaCount = 3 }
+        resources = {
+          requests = { cpu = "100m", memory = "256Mi" }
+          limits   = { cpu = "1", memory = "1Gi" }
+        }
+      }
+      operator  = { enabled = true, serviceAccount = { create = false, name = "teleport-cluster-operator" } }
+      chartMode = "aws"
       aws = {
         region                 = var.region
         backendTable           = aws_dynamodb_table.teleport_backend.name
