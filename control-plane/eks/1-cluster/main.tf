@@ -123,18 +123,27 @@ module "eks_blueprints_addons" {
       most_recent = true
     }
     vpc-cni = {
-      most_recent = true
-      # Prefix delegation lifts the ENI-based max-pods ceiling (t3.medium:
-      # 17 -> ~110). Added 2026-08-31: the on-demand node hit "Too many
-      # pods" at 38% CPU/mem during a proxy rollout (2-teleport replicas=3),
-      # deadlocking its PVC-pinned singletons (event-handler). Verification
-      # plan: the nightly scaling recycles the spot nodes — if tomorrow's
-      # fresh nodes still report pods capacity 17, the managed node groups
-      # need an explicit kubelet max-pods bump too (docs ambiguous; verify
-      # empirically before adding config here).
+      most_recent    = true
+      before_compute = true # CNI settings must apply BEFORE nodes so they
+      # bootstrap with the raised max-pods. Prefix delegation lifts the
+      # ENI-based ceiling (t3.medium: 17 -> 110). Added 2026-08-31 after the
+      # on-demand node hit "Too many pods" at 38% CPU during a proxy rollout,
+      # deadlocking a PVC-pinned singleton (event-handler).
+      #
+      # VERIFIED 2026-09-01: fresh nodes STILL reported pods=17 with
+      # ENABLE_PREFIX_DELEGATION alone. Two reasons, now addressed / flagged:
+      #   1. WARM_PREFIX_TARGET=1 is the documented companion (added below).
+      #   2. **Bottlerocket does NOT auto-compute --max-pods=110 the way AL2's
+      #      bootstrap.sh does** — the node groups (ami_type BOTTLEROCKET) need
+      #      an explicit max-pods in Bottlerocket [settings.kubernetes]. NOT
+      #      added yet: exact Bottlerocket TOML unverified and a bad bootstrap
+      #      arg stops nodes joining. Verify against Bottlerocket docs / a test
+      #      node before setting it on this live demo cluster. Until then the
+      #      ceiling stays 17 (fine — proxies fit now post spread-fix).
       configuration_values = jsonencode({
         env = {
           ENABLE_PREFIX_DELEGATION = "true"
+          WARM_PREFIX_TARGET       = "1"
         }
       })
     }
