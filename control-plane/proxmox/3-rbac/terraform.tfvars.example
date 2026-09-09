@@ -1,0 +1,18 @@
+# 3-rbac/terraform.tfvars.example
+
+export TF_VAR_proxy_address="teleport.chrisdlg.com"
+
+# Owner of the access lists (runs membership reviews). Real Teleport username —
+# kept out of the repo.
+export TF_VAR_access_list_owner="you@example.com"
+
+# --- SSO (Phase 2 — leave empty for Phase 1 local auth) ---
+# Rewire to NEW Okta apps for teleport.chrisdlg.com before enabling. Empty =
+# no SAML connector is created.
+export TF_VAR_okta_metadata_url=""
+export TF_VAR_enable_okta_preview="false"
+export TF_VAR_okta_preview_metadata_url=""
+
+# Team labels used in role label matchers
+export TF_VAR_dev_team="dev"
+export TF_VAR_prod_team="platform"

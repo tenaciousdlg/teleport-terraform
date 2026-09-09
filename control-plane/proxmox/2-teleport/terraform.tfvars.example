@@ -1,0 +1,15 @@
+# 2-teleport/terraform.tfvars.example
+#
+# DNS/ingress is external: teleport.chrisdlg.com is served by Cloudflare's edge
+# and routed to the k3s LoadBalancer Service by the cloudflared tunnel already
+# applied in ~/github/cloudflare-infra (hollowtree-tunnel.tf, no_tls_verify=true).
+# This layer does NOT manage DNS.
+
+export TF_VAR_proxy_address="teleport.chrisdlg.com"
+export TF_VAR_user="you@example.com"
+export TF_VAR_teleport_version="18.11.0"
+export TF_VAR_env="prod"
+export TF_VAR_team="platform"
+
+# Access Graph is out of scope for the Proxmox replica.
+export TF_VAR_access_graph_enabled="false"

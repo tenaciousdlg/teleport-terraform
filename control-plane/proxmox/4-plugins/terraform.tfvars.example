@@ -1,0 +1,13 @@
+# 4-plugins/terraform.tfvars.example
+#
+# Teleport Slack access-request plugin. tbot joins via kubernetes join (pod SA
+# JWT) — no stored identity. Works the same on k3s as on EKS.
+
+export TF_VAR_proxy_address="teleport.chrisdlg.com"
+
+# Slack bot token + target channel for access-request notifications.
+export TF_VAR_slack_bot_token="xoxb-your-bot-token"
+export TF_VAR_slack_channel_id="C0XXXXXXXXX"
+
+# Optional: pin the plugin chart version (empty = latest).
+export TF_VAR_plugin_chart_version=""

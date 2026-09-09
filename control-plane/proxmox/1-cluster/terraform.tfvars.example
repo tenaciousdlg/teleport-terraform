@@ -1,0 +1,31 @@
+# 1-cluster/terraform.tfvars.example
+#
+# Secrets go through env vars, not this file. Source your Proxmox token from the
+# environment. Nothing here is required to have non-default values for a working
+# apply on hollowtree — the defaults already target this homelab.
+
+# --- Proxmox API (prefer the PROXMOX_VE_* env vars over TF_VAR_*) ---
+# export PROXMOX_VE_ENDPOINT="https://192.168.1.10:8006/"
+# export PROXMOX_VE_API_TOKEN="terraform@pve!tf=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+# export PROXMOX_VE_INSECURE="true"
+
+export TF_VAR_proxmox_node="hollowtree"
+
+# --- Proxmox node SSH (for the lxc.conf tweaks + k3s install via `pct exec`) ---
+# Uses your ssh-agent (same as the provider's ssh{ agent = true }); user must be
+# able to run `pct` and edit /etc/pve/lxc/<vmid>.conf (i.e. root).
+export TF_VAR_proxmox_ssh_host="192.168.1.10"
+export TF_VAR_proxmox_ssh_user="root"
+
+# --- Container (privileged LXC) ---
+export TF_VAR_container_ip="192.168.1.50"   # FRESH/free; CT102 stays on .45 until cutover
+export TF_VAR_datastore_id="ember"
+# export TF_VAR_container_vm_id="150"        # omit to auto-assign the next free VMID
+# export TF_VAR_os_template_file_id="local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+
+# --- Optional container root access (primary access is `pct exec` from node) ---
+# export TF_VAR_container_ssh_public_key="ssh-ed25519 AAAA... you@host"
+# export TF_VAR_container_root_password="..."
+
+# --- Optional ---
+# export TF_VAR_k3s_version="v1.31.5+k3s1"
