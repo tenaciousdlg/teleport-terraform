@@ -67,6 +67,18 @@ variable "autoupdate_start_version" {
   default     = ""
 }
 
+variable "jit_admin_usernames" {
+  # Who may have an `editor` access request auto-approved. Defaults to just the
+  # access-list owner, which was right while auth was local and the only admin
+  # was the local `dlg`. With Okta as the default login provider the usernames
+  # are email addresses, and a condition matching the bare owner name silently
+  # stops matching anyone -- the request is still created, it just waits
+  # forever for a human reviewer.
+  description = "Teleport usernames whose `editor` access requests auto-approve. Empty falls back to [access_list_owner]. Set via TF_VAR_jit_admin_usernames; kept out of the repo like access_list_owner."
+  type        = list(string)
+  default     = []
+}
+
 variable "access_list_owner" {
   description = "Teleport username that owns the access lists (runs membership reviews). Kept out of the repo — set via TF_VAR_access_list_owner."
   type        = string

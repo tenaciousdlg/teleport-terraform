@@ -37,6 +37,13 @@ resource "kubectl_manifest" "amr_demo_prodaccess" {
   })
 }
 
+locals {
+  # set("a", "b") for the AMR condition. Falls back to the access-list owner so
+  # existing behaviour is unchanged when the new variable is not set.
+  jit_admins    = length(var.jit_admin_usernames) > 0 ? var.jit_admin_usernames : [var.access_list_owner]
+  jit_admin_set = join(", ", [for u in local.jit_admins : "\"${u}\""])
+}
+
 # JIT editor: the ZSP counterpart to dropping standing editor from the
 # engineers list. Editor-only requests from the owner auto-approve; anyone
 # else's editor request waits for a human reviewer.
@@ -51,7 +58,7 @@ resource "kubectl_manifest" "amr_demo_admin_jit" {
     spec = {
       subjects      = ["access_request"]
       desired_state = "reviewed"
-      condition     = "contains_all(set(\"editor\"), access_request.spec.roles) && contains_any(user.traits[\"username\"], set(\"${var.access_list_owner}\"))"
+      condition     = "contains_all(set(\"editor\"), access_request.spec.roles) && contains_any(user.traits[\"username\"], set(${local.jit_admin_set}))"
       automatic_review = {
         integration = "builtin"
         decision    = "APPROVED"
