@@ -106,6 +106,12 @@ resource "helm_release" "teleport_cluster" {
           requests = { cpu = "100m", memory = "256Mi" }
           limits   = { cpu = "1", memory = "1Gi" }
         }
+        # The proxy serves the web UI and reaches Access Graph ITSELF, so it
+        # needs the same endpoint + CA as auth. The docs' Helm example only
+        # shows auth.teleportConfig; without this the proxy logs "access graph
+        # service is not reachable, returning 404" and Identity Security
+        # renders empty while auth is happily importing.
+        teleportConfig = local.access_graph_auth_config
       }
       operator = { enabled = true, serviceAccount = { create = true, name = "teleport-cluster-operator" } }
 
