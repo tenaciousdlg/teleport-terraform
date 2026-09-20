@@ -51,7 +51,22 @@ variable "second_factors" {
 }
 
 variable "access_graph_audit_log_enabled" {
-  description = "Stream the audit log into Access Graph. Requires the Identity Activity Center, which is a separate deployment; false until that exists, otherwise auth error-loops."
+  # DELIBERATELY OFF, and not a gap. Streaming the audit log into Access Graph
+  # requires the Identity Activity Center, and IAC has a hard AWS dependency:
+  # two S3 buckets (long-term Parquet + transient results), an SQS queue with a
+  # dead-letter queue, Athena as the query engine, Glue for the schema catalog,
+  # and a customer-managed KMS key. The Helm values are AWS-shaped throughout
+  # (region, workgroup, sqs_queue_url, s3://...).
+  #
+  # PostgreSQL is explicitly NOT sufficient -- it only holds the graph data.
+  # R2 could stand in for S3, but nothing self-hosted substitutes for Athena
+  # and Glue, so this cannot run on the Proxmox replica at all.
+  #
+  # Decision 2026-09-20 (Chris): keep this stage on Proxmox, leave IAC off.
+  # Access Graph itself -- the graph, the explorer, path analysis -- is the
+  # bulk of Identity Security and is fully working without it. Turning this on
+  # later is this one variable plus the AWS side.
+  description = "Stream the audit log into Access Graph. Requires the Identity Activity Center, which needs AWS S3+SQS+Athena+Glue+KMS and therefore cannot run on this Proxmox cluster. Off by design; with it true and IAC absent, auth error-loops."
   type        = bool
   default     = false
 }
