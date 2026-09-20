@@ -1040,3 +1040,48 @@ resource "kubectl_manifest" "autoupdate_version" {
     }
   })
 }
+
+# The personal identity's grants, as an access list rather than roles hung off
+# the SAML connector.
+#
+# The unified pattern above is that EVERY IdP maps only to base-user and real
+# grants come from access lists. The Okta connector for this cluster was first
+# written mapping `homelab` straight to roles, which works but puts the grant
+# somewhere no review process looks. This is the same bundle expressed the way
+# the rest of the cluster expresses grants: owner-reviewed, auditable, and
+# visible in Identity Security alongside the others.
+#
+# Zero standing privilege, same as engineers: reads via config-reader +
+# auditor, writes JIT through admin-requester -> editor (4h, reason required,
+# auto-approved by demo-admin-jit in amr.tf).
+#
+# type = scim: membership arrives by Okta group push, so the `homelab` group
+# must be added to Push Groups on the Okta app. Until it is, this list has no
+# members and grants nobody anything.
+resource "kubectl_manifest" "access_list_homelab" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportAccessList"
+    metadata = {
+      name      = "homelab"
+      namespace = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+    }
+    spec = {
+      title       = "homelab"
+      description = "Personal identity — estate administration on this cluster"
+      type        = "scim"
+      owners = [
+        { name = var.access_list_owner, description = "Estate owner" }
+      ]
+      audit = {
+        next_audit_date = "2026-12-20T00:00:00Z"
+        recurrence = {
+          frequency = "6months"
+        }
+      }
+      grants = {
+        roles = ["access", "auditor", "config-reader", "admin-requester"]
+      }
+    }
+  })
+}
