@@ -49,3 +49,9 @@ variable "second_factors" {
   type        = list(string)
   default     = ["webauthn", "otp"]
 }
+
+variable "access_graph_audit_log_enabled" {
+  description = "Stream the audit log into Access Graph. Requires the Identity Activity Center, which is a separate deployment; false until that exists, otherwise auth error-loops."
+  type        = bool
+  default     = false
+}

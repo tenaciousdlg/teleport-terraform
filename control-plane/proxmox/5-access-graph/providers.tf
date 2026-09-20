@@ -1,0 +1,72 @@
+##################################################################################
+# PROVIDERS & REMOTE STATE
+##################################################################################
+#
+# Copied from 2-teleport/providers.tf -- same k3s, same auth. Differences:
+#   - no aws provider, no `aws eks get-token` exec auth
+#   - remote state is the LOCAL 1-cluster state, not S3
+#   - k8s/helm/kubectl auth with the k3s admin client cert/key + CA (not exec)
+
+terraform {
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.23"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.11"
+    }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = "~> 0.10"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
+  }
+}
+
+# Read k3s cluster info from the 1-cluster local state (NO MANUAL COORDINATION).
+data "terraform_remote_state" "cluster" {
+  backend = "local"
+  config = {
+    path = "../1-cluster/terraform.tfstate"
+  }
+}
+
+locals {
+  kube_host = data.terraform_remote_state.cluster.outputs.kube_host
+  kube_ca   = base64decode(data.terraform_remote_state.cluster.outputs.cluster_ca_certificate)
+  kube_cert = base64decode(data.terraform_remote_state.cluster.outputs.client_certificate)
+  kube_key  = base64decode(data.terraform_remote_state.cluster.outputs.client_key)
+}
+
+provider "kubernetes" {
+  host                   = local.kube_host
+  cluster_ca_certificate = local.kube_ca
+  client_certificate     = local.kube_cert
+  client_key             = local.kube_key
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = local.kube_host
+    cluster_ca_certificate = local.kube_ca
+    client_certificate     = local.kube_cert
+    client_key             = local.kube_key
+  }
+}
+
+provider "kubectl" {
+  host                   = local.kube_host
+  cluster_ca_certificate = local.kube_ca
+  client_certificate     = local.kube_cert
+  client_key             = local.kube_key
+  load_config_file       = false
+}

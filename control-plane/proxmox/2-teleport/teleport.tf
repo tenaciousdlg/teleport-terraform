@@ -27,8 +27,12 @@ locals {
       enabled  = true
       endpoint = "teleport-access-graph.teleport-access-graph.svc.cluster.local:443"
       ca       = "/var/run/access-graph/ca.pem"
+      # audit_log export requires the Identity Activity Center, a SEPARATE
+      # component that is not deployed here. With it on but IAC absent, auth
+      # logs "Identity activity center is not configured, cannot process
+      # Teleport Audit Log stream" in a loop while the graph itself works fine.
       audit_log = {
-        enabled = true
+        enabled = var.access_graph_audit_log_enabled
       }
     }
   } : {}
