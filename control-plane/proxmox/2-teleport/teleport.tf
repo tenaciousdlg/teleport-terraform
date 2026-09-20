@@ -79,7 +79,15 @@ resource "helm_release" "teleport_cluster" {
       # Phase 2 flips type→saml and tightens to webauthn-only to match presales).
       # device_trust is set via auth.teleportConfig below — the chart has no
       # deviceTrust value.
-      authentication = { type = var.authentication_type, secondFactors = var.second_factors }
+      # connectorName is set explicitly rather than left to Teleport's pick, so
+      # adding a second SSO connector later cannot silently change which one
+      # the login page offers. local auth stays enabled underneath (the
+      # cluster_auth_preference keeps allow_local_auth: true), so the local
+      # admin remains a break-glass path if Okta is unavailable.
+      authentication = merge(
+        { type = var.authentication_type, secondFactors = var.second_factors },
+        var.authentication_connector_name != "" ? { connectorName = var.authentication_connector_name } : {},
+      )
 
       # Standalone chart mode: auth backend on-disk instead of DynamoDB, session
       # recordings on-disk instead of S3. The PVC uses k3s's built-in local-path

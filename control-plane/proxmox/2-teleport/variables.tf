@@ -44,6 +44,12 @@ variable "authentication_type" {
   default     = "local"
 }
 
+variable "authentication_connector_name" {
+  description = "Which connector the web UI offers by default when authentication_type is an SSO type. Empty lets Teleport pick; set explicitly so behaviour does not change if a second connector is ever added."
+  type        = string
+  default     = ""
+}
+
 variable "second_factors" {
   description = "Allowed second factors. Phase 1 includes 'otp' so a local admin can bootstrap without a passkey; presales is webauthn-only, so tighten to [\"webauthn\"] in Phase 2."
   type        = list(string)
