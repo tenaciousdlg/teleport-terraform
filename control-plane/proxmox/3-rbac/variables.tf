@@ -128,3 +128,17 @@ variable "agent_registration_secrets" {
   sensitive   = true
   default     = {}
 }
+
+variable "terraform_bot_public_key" {
+  # PUBLIC half of the bound keypair the Terraform provider's bot joins with, in
+  # SSH authorized_keys format. Not a secret -- it lives in the repo on purpose,
+  # because pre-registering it is what removes the registration secret from the
+  # bootstrap path entirely.
+  #
+  # Workstation-specific. Regenerate with:
+  #   tbot keypair create --proxy-server=teleport.chrisdlg.com:443 \
+  #     --storage=file:///Users/dlg/.tbot/teleport-terraform
+  description = "Public key pre-registered on the terraform-local bound_keypair token."
+  type        = string
+  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpqp8Sg8zH7jca/mZoOvyeTQh/C6VR72c1/KCdlkamK"
+}
