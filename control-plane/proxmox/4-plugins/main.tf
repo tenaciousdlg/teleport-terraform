@@ -31,10 +31,26 @@ resource "kubectl_manifest" "role_slack_access_plugin" {
     }
     spec = {
       allow = {
+        # The first three are the classic set. The last two were added
+        # 2026-09-21 because the plugin ASKED for them, by name, on startup:
+        #
+        #   WARN Failed to watch access_monitoring_rule events. Allow
+        #        access_monitoring_rule read permissions in the plugin role.
+        #   WARN Slack bot does not have permissions to list access lists.
+        #        Please add access_list read and list permissions...
+        #
+        # Both matter on this cluster rather than being cosmetic: approval is
+        # AMR-driven (see 3-rbac/amr.tf, which auto-approves dlg's editor
+        # requests), and nearly every grant here comes through an access list.
+        # Without these the plugin runs but cannot follow the routing rules or
+        # send access-list review reminders -- it would look healthy and be
+        # half-blind, which is the failure mode this estate keeps hitting.
         rules = [
           { resources = ["access_request"], verbs = ["list", "read", "update"] },
           { resources = ["user"], verbs = ["list", "read"] },
           { resources = ["role"], verbs = ["list", "read"] },
+          { resources = ["access_monitoring_rule"], verbs = ["list", "read"] },
+          { resources = ["access_list"], verbs = ["list", "read"] },
         ]
       }
     }
