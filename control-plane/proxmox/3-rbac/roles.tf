@@ -1088,6 +1088,49 @@ resource "kubectl_manifest" "autoupdate_version" {
 # type = scim: membership arrives by Okta group push, so the `homelab` group
 # must be added to Push Groups on the Okta app. Until it is, this list has no
 # members and grants nobody anything.
+# Kubernetes access for the personal identity.
+#
+# WHY A CR AND NOT THE PROVIDER (per ~/github/CLAUDE.md): the grant lives on
+# access_list_homelab in this same file, which is operator-managed. Splitting
+# the role into provider state and the grant into CR state would make the
+# apply order across two backends fragile for no benefit.
+#
+# WHY THIS EXISTS AT ALL: the `access` preset grants
+# kubernetes_groups: ['{{internal.kubernetes_groups}}'] -- a TEMPLATE. SCIM
+# users carry no static traits, so it renders EMPTY (role templates reference:
+# a missing variable renders empty rather than erroring). The result is the
+# worst kind of half-working: kubernetes_labels '*':'*' means the cluster is
+# visible and `tsh kube ls` succeeds, but with no group the Kubernetes API has
+# no identity to authorise and discovery fails with NotFound -- which reads
+# like a broken cluster, not a missing permission.
+#
+# Standing access is VIEWER only, matching zero-standing-privilege elsewhere
+# here: editor-level kube comes through the existing JIT path, not by default.
+resource "kubectl_manifest" "role_homelab_kube" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "homelab-kube"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "IAC: standing read-only Kubernetes access for the personal identity"
+    }
+    spec = {
+      allow = {
+        # A literal group, not a trait template -- that is the entire point.
+        kubernetes_groups = ["teleport-prod-viewers"]
+        kubernetes_labels = {
+          env  = ["prod"]
+          team = ["platform"]
+        }
+        kubernetes_resources = [
+          { kind = "*", namespace = "*", name = "*", verbs = ["get", "list", "watch"] }
+        ]
+      }
+    }
+  })
+}
+
 resource "kubectl_manifest" "access_list_homelab" {
   yaml_body = yamlencode({
     apiVersion = "resources.teleport.dev/v1"
@@ -1110,7 +1153,7 @@ resource "kubectl_manifest" "access_list_homelab" {
         }
       }
       grants = {
-        roles = ["access", "auditor", "config-reader", "admin-requester"]
+        roles = ["access", "auditor", "config-reader", "admin-requester", "homelab-kube"]
       }
     }
   })
