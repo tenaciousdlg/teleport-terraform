@@ -9,9 +9,25 @@
 # canonical demo defaults: dev/dev and prod/platform.
 # Provider must be configured by the calling root module.
 #
-# Numeric enums used below (Terraform provider uses proto enum ints):
-#   create_host_user_mode / create_db_user_mode:  0 = off  1 = keep  2 = drop
-#   require_session_mfa:  0 = no  1 = yes
+# Numeric enums used below (Terraform provider uses proto enum ints).
+# These are NOT the same numbering for host users and database users, and the
+# earlier comment here had them wrong -- it claimed 1 = keep, so every role
+# below sat at 1, which is OFF. Host user creation was silently disabled.
+# Values verified against the provider schema 2026-09-20; read the schema, not
+# a comment:
+#   terraform providers schema -json | jq '...options.create_host_user_mode'
+#
+#   create_host_user_mode: 0 = unspecified, 1 = off, 2 = drop (gone in v15+),
+#                          3 = KEEP, 4 = insecure-drop
+#   create_db_user_mode:   0 = unspecified, 1 = off, 2 = KEEP,
+#                          3 = best_effort_drop      <-- different numbering!
+#   require_session_mfa:   0 = off, 1 = session, 2 = session_and_hardware_key,
+#                          3 = hardware_key_touch, 4 = hardware_key_pin,
+#                          5 = hardware_key_touch_and_pin
+#
+# This matters more than it looks: Teleport disables host user creation for a
+# node if ANY role matching that node leaves the mode off or unset, so one
+# wrong role poisons the host for every other role.
 ##################################################################################
 
 terraform {
@@ -66,7 +82,7 @@ resource "teleport_role" "dev_access" {
     options = {
       max_session_ttl                = "8h0m0s"
       enhanced_recording             = ["command", "network"]
-      create_host_user_mode          = 1
+      create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
       create_db_user                 = true
       create_desktop_user            = true
@@ -141,7 +157,7 @@ resource "teleport_role" "dev_auto_access" {
       enhanced_recording             = ["command", "network"]
       create_db_user                 = true
       create_db_user_mode            = 1
-      create_host_user_mode          = 1
+      create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
     }
 
@@ -187,7 +203,7 @@ resource "teleport_role" "platform_dev_access" {
     options = {
       max_session_ttl                = "8h0m0s"
       enhanced_recording             = ["command", "network"]
-      create_host_user_mode          = 1
+      create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
       create_db_user                 = true
       create_db_user_mode            = 1
@@ -264,11 +280,20 @@ resource "teleport_role" "prod_readonly_access" {
 
   spec = {
     options = {
-      max_session_ttl       = "4h0m0s"
-      enhanced_recording    = ["command", "network"]
-      create_host_user_mode = 0
+      max_session_ttl    = "4h0m0s"
+      enhanced_recording = ["command", "network"]
+      # KEEP, not unspecified. This role grants `logins` and prod node_labels,
+      # so it matches prod nodes -- and Teleport disables host user creation for
+      # a node if ANY matching role leaves the mode off or unset. Left at 0 it
+      # silently cancelled prod-access's keep for anyone holding both, and the
+      # `readonly` account was never created, so the read-only persona could
+      # not actually log in.
+      create_host_user_mode = 3 # keep
       create_db_user        = false
-      create_db_user_mode   = 0
+      # Database users are deliberately NOT auto-created here: `reader` and
+      # `reporting` are expected to exist already. Note the different
+      # numbering -- 0 is unspecified, and for db users 2 (not 3) is keep.
+      create_db_user_mode = 0
     }
 
     allow = {
@@ -319,7 +344,7 @@ resource "teleport_role" "prod_access" {
       max_session_ttl                = "2h0m0s"
       require_session_mfa            = 1
       enhanced_recording             = ["command", "network"]
-      create_host_user_mode          = 1
+      create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
       create_db_user                 = true
       create_db_user_mode            = 1
@@ -400,7 +425,7 @@ resource "teleport_role" "prod_auto_access" {
       enhanced_recording             = ["command", "network"]
       create_db_user                 = true
       create_db_user_mode            = 1
-      create_host_user_mode          = 1
+      create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
     }
 
