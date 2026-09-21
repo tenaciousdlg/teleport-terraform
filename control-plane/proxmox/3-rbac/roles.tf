@@ -1131,6 +1131,62 @@ resource "kubectl_manifest" "role_homelab_kube" {
   })
 }
 
+# SSH to the env=home machines for the personal identity.
+#
+# WHY A SEPARATE ROLE: no presales role matches env=home, because presales has
+# no such nodes -- mirroring the `engineers` bundle onto access_list_homelab
+# (below) fixes env=dev only. lgm and siem both carry env=home and were
+# unreachable: "Failed to launch: user: unknown user dlg".
+#
+# Same CR-not-provider reasoning as role_homelab_kube above: the grant lives on
+# an operator-managed access list in this file.
+#
+# TWO LOGINS ON PURPOSE, and the pair is deliberate:
+#   dlg   -- already exists on lgm (uid 1000, zsh). Granting it means SSH to
+#            lgm works whether or not host user creation does.
+#   chris -- siem has NO login users at all, only root, so reaching it depends
+#            on create_host_user_mode below actually creating one. Granting
+#            root instead would be the easy answer and the wrong one.
+#
+# create_host_user_mode = keep, per the standing default. Note the residual
+# uncertainty: the `access` preset also matches these nodes (node_labels
+# '*':'*') and leaves the mode UNSET. The roles reference documents how
+# explicit values combine ("logical AND ... if some roles specify both
+# insecure-drop or keep it will evaluate to keep") but does NOT say what an
+# unset value does among them. My own note here claimed "off or unset" both
+# disable it; that is not doc-backed and should not be trusted. The `dlg`
+# login is the hedge -- if unset does poison the node, lgm still works and
+# only siem needs revisiting.
+resource "kubectl_manifest" "role_homelab_ssh" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "homelab-ssh"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "IAC: SSH to the env=home estate machines for the personal identity"
+    }
+    spec = {
+      allow = {
+        # Literals, not trait templates -- that is the whole lesson of
+        # role_homelab_kube and of the data-plane breakage this repairs.
+        logins = ["dlg", "chris"]
+        node_labels = {
+          env  = ["home"]
+          team = ["platform"]
+        }
+      }
+      options = {
+        create_host_user_mode = "keep"
+        # Safe to set broadly: both evaluate as the MOST RESTRICTIVE across a
+        # user's roles, so this cannot widen anything granted elsewhere.
+        client_idle_timeout     = "1h"
+        disconnect_expired_cert = true
+      }
+    }
+  })
+}
+
 resource "kubectl_manifest" "access_list_homelab" {
   yaml_body = yamlencode({
     apiVersion = "resources.teleport.dev/v1"
@@ -1184,6 +1240,8 @@ resource "kubectl_manifest" "access_list_homelab" {
         roles = [
           # existing control-plane grants, unchanged
           "access", "auditor", "config-reader", "admin-requester", "homelab-kube",
+          # env=home SSH (lgm, siem) -- not covered by any presales role
+          "homelab-ssh",
           # data plane, mirroring presales `engineers`
           "platform-dev-access", "dev-auto-access", "prod-readonly-access",
           "team-access",
