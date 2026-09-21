@@ -26,6 +26,46 @@
 # estate machines hold a join token is most of the value of adopting these into
 # terraform. Only the onboarding secrets come from Vault, so the two are
 # separate variables (and a sensitive value cannot drive for_each anyway).
+#
+# THIS USES THE WRONG ONBOARDING AND SHOULD BE MIGRATED. ~/github/CLAUDE.md's
+# standing default is `initial_public_key`, NOT `registration_secret`, and the
+# reason is exactly what this file demonstrates: "a public key is not a secret,
+# so the token is fully described in the repo with nothing gitignored and
+# nothing in Vault."
+#
+# One wrong choice here produced all of the following:
+#   - a Vault entry (secret/demo/teleport-agent-join) that need not exist
+#   - a sensitive TF var with no default, so a bare plan dies with
+#     "Invalid index ... each.key is \"lgm\"" -- which reads like a bug in the
+#     for_each and is actually an unexported variable
+#   - this layer being effectively target-apply-only for anyone who has not
+#     exported it
+#   - per CLAUDE.md, onboarding that does NOT survive an operator reconcile:
+#     a re-arm resets the token to awaiting a secret the agent already
+#     consumed, whereas a pre-registered public key just re-binds
+#
+# MIGRATION, per the bound_keypair static-keys doc. Not yet done, deliberately:
+#   1. on the host:  tbot keypair create --proxy-server <proxy>:443 \
+#                      --static --static-key-path /etc/teleport-static-key
+#      It prints the public key in SSH authorized_keys format.
+#   2. here:  onboarding.initial_public_key = "ssh-ed25519 ..."  (in the repo;
+#      it is a public key) and recovery.mode = "insecure" -- which the doc
+#      requires for static keys, and which contradicts the note elsewhere in
+#      CLAUDE.md that mode must be unset. That note came from `standard`
+#      failing, not from testing `insecure`.
+#   3. on the host: replace join_params.bound_keypair.registration_secret_path
+#      with static_key_path, then restart teleport.
+#
+# WHY IT IS NOT DONE HERE. Two honest blockers, both worth clearing before
+# anyone tries:
+#   - The doc covers INITIAL joining only. It does not describe converting an
+#     agent that has already joined with a registration secret, so this is
+#     unproven on a live agent. Rollback does exist: the secrets remain in
+#     Vault and on the hosts at /etc/teleport-join-secret.
+#   - lgm has no passwordless sudo, and steps 1 and 3 need root. siem (CT104)
+#     is reachable as root via `ssh hollowtree` + `pct exec 104`, so siem is
+#     the natural proving ground; do it there first, confirm the agent
+#     re-joins, and only then touch lgm.
 resource "kubectl_manifest" "agent_token" {
   for_each = toset(var.estate_agents)
 
