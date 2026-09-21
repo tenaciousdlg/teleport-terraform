@@ -33,6 +33,36 @@ resource "kubectl_manifest" "saml_connector_okta" {
   })
 }
 
+# The connector for THIS cluster's own Okta app, distinct from the presales
+# one above. Named `okta` because the connector name is the last path segment
+# of the ACS URL, and cluster_auth_preference.connector_name points at it.
+#
+# Unified pattern, fully: maps only to base-user. Real grants come from the
+# access lists -- `homelab` for the personal identity, `engineers` and the rest
+# for the demo personas -- where they are owner-reviewed and auditable.
+resource "kubectl_manifest" "saml_connector_chrisdlg" {
+  count = var.chrisdlg_saml_entity_descriptor != "" ? 1 : 0
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v2"
+    kind       = "TeleportSAMLConnector"
+    metadata = {
+      name      = "okta"
+      namespace = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+    }
+    spec = {
+      display = "Okta"
+      acs     = "https://${var.proxy_address}:443/v1/webapi/saml/acs/okta"
+      attributes_to_roles = [
+        { name = "groups", value = "homelab", roles = ["base-user"] },
+        { name = "groups", value = "engineers", roles = ["base-user"] },
+        { name = "groups", value = "devs", roles = ["base-user"] },
+        { name = "groups", value = "senior-devs", roles = ["base-user"] },
+      ]
+      entity_descriptor = var.chrisdlg_saml_entity_descriptor
+    }
+  })
+}
+
 resource "kubectl_manifest" "saml_connector_okta_preview" {
   count = var.enable_okta_preview ? 1 : 0
   yaml_body = yamlencode({

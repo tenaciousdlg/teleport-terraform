@@ -83,3 +83,48 @@ variable "access_list_owner" {
   description = "Teleport username that owns the access lists (runs membership reviews). Kept out of the repo — set via TF_VAR_access_list_owner."
   type        = string
 }
+
+variable "chrisdlg_saml_entity_descriptor" {
+  # The Okta app's SAML metadata XML, inline. NOT entity_descriptor_url: that
+  # endpoint returns 403 without an API token, verified from both this Mac and
+  # from inside the cluster, so Teleport cannot fetch it itself.
+  #
+  # Source it from the okta repo rather than pasting:
+  #   terraform -chdir=~/github/okta output -raw chrisdlg_teleport_saml_metadata
+  #
+  # Kept out of this repo like the other IdP values -- set
+  # TF_VAR_chrisdlg_saml_entity_descriptor locally. Empty creates no connector.
+  description = "SAML metadata XML for the teleport.chrisdlg.com Okta app. Empty disables the connector."
+  type        = string
+  default     = ""
+}
+
+variable "estate_agents" {
+  # Personal machines running a Teleport agent from OUTSIDE k3s, by name. Each
+  # gets a bound_keypair join token `agent-<name>` in agents.tf. Not secret --
+  # recording which machines are enrolled is the point of keeping them here.
+  # Each name needs a matching field in var.agent_registration_secrets.
+  description = "Estate machines outside k3s that join with their own bound_keypair token."
+  type        = list(string)
+  default     = []
+}
+
+variable "agent_registration_secrets" {
+  # bound_keypair onboarding secrets for the estate agents in agents.tf, keyed
+  # by agent name -- key "lgm" produces the token `agent-lgm`.
+  #
+  # Lives in Vault at secret/demo/teleport-agent-join, one
+  # `<agent>_registration_secret` field per agent. Strip the suffix to get the
+  # map this variable wants:
+  #   export TF_VAR_agent_registration_secrets="$(vault kv get -format=json \
+  #     secret/demo/teleport-agent-join | jq -c '.data.data
+  #       | with_entries(select(.key | endswith("_registration_secret"))
+  #       | .key |= rtrimstr("_registration_secret"))')"
+  #
+  # Empty creates no tokens, which is correct for a cluster with no estate
+  # agents outside k3s.
+  description = "bound_keypair registration secrets per estate agent, keyed by agent name. Kept out of the repo."
+  type        = map(string)
+  sensitive   = true
+  default     = {}
+}

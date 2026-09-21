@@ -14,6 +14,10 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = "~> 1.14"
     }
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> 18.0" # major must be a static string; bump on cluster upgrade
+    }
   }
 }
 
@@ -45,6 +49,22 @@ provider "kubectl" {
   client_key             = local.kube_key
   load_config_file       = false
 }
+
+# Teleport-native resources are moving off operator CRs and onto this provider
+# (see ~/github/CLAUDE.md, "Terraform is the destination"). The operator keeps
+# only bootstrap resources.
+#
+# Credentials come from tbot, NOT from `tctl terraform env` -- that mints an
+# ephemeral bot + role + token on every run, which is three admin actions and
+# three MFA taps. Pre-flight, every time, before plan or apply:
+#
+#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv teleport
+#
+# which re-certs the persistent `terraform-local` bot over its bound keypair
+# and exports TF_TELEPORT_ADDR + TF_TELEPORT_IDENTITY_FILE_PATH. The provider
+# reads both from the environment, so this block stays empty and the layer
+# carries no credential.
+provider "teleport" {}
 
 data "kubernetes_namespace" "teleport_cluster" {
   metadata {
