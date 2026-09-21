@@ -114,6 +114,12 @@ db_service:
     - labels:
         "env": "${env}"
         "team": "${team}"
+        # ENGINE IS LOAD-BEARING. Without it every db agent matching env+team
+        # claims every database with those labels -- so the mysql host also
+        # advertised postgres-dev and tried to reach localhost:5432, where
+        # nothing listens. Half the routes were dead and it looked like a
+        # flaky database rather than a matcher that was too broad.
+        "engine": "${engine}"
 ssh_service:
   enabled: "yes"
   labels:

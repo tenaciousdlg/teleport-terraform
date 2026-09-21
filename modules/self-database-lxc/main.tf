@@ -233,6 +233,7 @@ locals {
     key              = tls_private_key.server_key.private_key_pem
     tele_ca          = var.teleport_db_ca
     env              = var.env
+    engine           = var.db_type
     team             = var.team
     token            = teleport_provision_token.db.metadata.name
     registration_key = random_password.registration_secret.result
