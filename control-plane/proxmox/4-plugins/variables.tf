@@ -32,13 +32,15 @@ variable "plugin_chart_version" {
   default     = ""
 }
 
-variable "event_handler_registration_secret" {
-  # bound_keypair onboarding secret for the event handler's bot. Lives in
-  # Vault at secret/demo/teleport-event-handler; set it with
-  #   TF_VAR_event_handler_registration_secret=$(vault kv get -field=registration_secret secret/demo/teleport-event-handler)
-  # Empty creates no token, which is correct for a cluster with no SIEM.
-  description = "bound_keypair registration secret for the event handler bot. Kept out of the repo."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
+# REMOVED 2026-09-21: variable "event_handler_registration_secret".
+#
+# The bot now pre-registers a PUBLIC key (local.event_handler_public_key in
+# event-handler.tf), so there is no onboarding secret and nothing for this
+# variable to carry. Removing it also removes a trap: it had `default = ""`
+# and gated the token with `count = ... != "" ? 1 : 0`, so forgetting to
+# export it did not fail the plan -- it planned to DESTROY the live token,
+# the same shape as the SAML connector in 3-rbac.
+#
+# The `registration_secret` field in secret/demo/teleport-event-handler is now
+# dead. That entry still holds fluentbit_server_key_passphrase, which is a
+# real secret and stays.
