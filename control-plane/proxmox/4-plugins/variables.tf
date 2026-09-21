@@ -31,3 +31,14 @@ variable "plugin_chart_version" {
   type        = string
   default     = ""
 }
+
+variable "event_handler_registration_secret" {
+  # bound_keypair onboarding secret for the event handler's bot. Lives in
+  # Vault at secret/demo/teleport-event-handler; set it with
+  #   TF_VAR_event_handler_registration_secret=$(vault kv get -field=registration_secret secret/demo/teleport-event-handler)
+  # Empty creates no token, which is correct for a cluster with no SIEM.
+  description = "bound_keypair registration secret for the event handler bot. Kept out of the repo."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
