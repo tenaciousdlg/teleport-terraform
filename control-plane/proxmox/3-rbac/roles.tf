@@ -42,6 +42,27 @@ resource "kubectl_manifest" "saml_connector_okta" {
 # for the demo personas -- where they are owner-reviewed and auditable.
 resource "kubectl_manifest" "saml_connector_chrisdlg" {
   count = var.chrisdlg_saml_entity_descriptor != "" ? 1 : 0
+
+  # A BARE `terraform apply` HERE USED TO DESTROY OKTA SSO. Verified 2026-09-21:
+  # with TF_VAR_chrisdlg_saml_entity_descriptor unset, count collapses to 0 and
+  # the plan reads
+  #   kubectl_manifest.saml_connector_chrisdlg[0] will be destroyed
+  #   (because index [0] is out of range for count)
+  # which is a one-line, easily-skimmed way to take down every SSO login on
+  # this cluster. The variable is deliberately not in the repo, so forgetting
+  # to export it is the DEFAULT state, not an unusual mistake.
+  #
+  # prevent_destroy turns that into a loud refusal at plan time. It is not a
+  # substitute for exporting the variable -- it just means the failure mode is
+  # an error instead of an outage. Source it with:
+  #   export TF_VAR_chrisdlg_saml_entity_descriptor="$(terraform \
+  #     -chdir=$HOME/github/okta output -raw chrisdlg_teleport_saml_metadata)"
+  #
+  # To retire the connector on purpose, delete this lifecycle block in the same
+  # commit that removes the resource, so the intent is reviewable.
+  lifecycle {
+    prevent_destroy = true
+  }
   yaml_body = yamlencode({
     apiVersion = "resources.teleport.dev/v2"
     kind       = "TeleportSAMLConnector"
