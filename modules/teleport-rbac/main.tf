@@ -156,7 +156,7 @@ resource "teleport_role" "dev_auto_access" {
       max_session_ttl                = "8h0m0s"
       enhanced_recording             = ["command", "network"]
       create_db_user                 = true
-      create_db_user_mode            = 1
+      create_db_user_mode            = 2 # keep (db users: 2, NOT 3)
       create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
     }
@@ -206,7 +206,7 @@ resource "teleport_role" "platform_dev_access" {
       create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
       create_db_user                 = true
-      create_db_user_mode            = 1
+      create_db_user_mode            = 2 # keep (db users: 2, NOT 3)
       create_desktop_user            = false
       desktop_clipboard              = true
       desktop_directory_sharing      = true
@@ -347,7 +347,7 @@ resource "teleport_role" "prod_access" {
       create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
       create_db_user                 = true
-      create_db_user_mode            = 1
+      create_db_user_mode            = 2 # keep (db users: 2, NOT 3)
       create_desktop_user            = false
       desktop_clipboard              = true
       desktop_directory_sharing      = true
@@ -424,7 +424,7 @@ resource "teleport_role" "prod_auto_access" {
       max_session_ttl                = "2h0m0s"
       enhanced_recording             = ["command", "network"]
       create_db_user                 = true
-      create_db_user_mode            = 1
+      create_db_user_mode            = 2 # keep (db users: 2, NOT 3)
       create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
     }
