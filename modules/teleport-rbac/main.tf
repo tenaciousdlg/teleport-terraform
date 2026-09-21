@@ -48,13 +48,18 @@ resource "teleport_role" "base_user" {
 
   metadata = {
     name        = "base-user"
-    description = "Base authenticated user with minimal permissions"
+    description = "IAC: Base authenticated user with minimal permissions"
   }
 
   spec = {
     options = {
-      max_session_ttl    = "8h0m0s"
-      enhanced_recording = ["command", "network"]
+      max_session_ttl = "8h0m0s"
+      # Session hygiene, per the access-controls reference. Both evaluate as
+      # the MOST RESTRICTIVE across a user's roles, so setting them here cannot
+      # loosen anything another role tightened.
+      client_idle_timeout     = "1h0m0s"
+      disconnect_expired_cert = true
+      enhanced_recording      = ["command", "network"]
     }
 
     allow = {
@@ -75,12 +80,17 @@ resource "teleport_role" "dev_access" {
 
   metadata = {
     name        = "dev-access"
-    description = "Standing access to dev resources for the dev team"
+    description = "IAC: Standing access to dev resources for the dev team"
   }
 
   spec = {
     options = {
-      max_session_ttl                = "8h0m0s"
+      max_session_ttl = "8h0m0s"
+      # Session hygiene, per the access-controls reference. Both evaluate as
+      # the MOST RESTRICTIVE across a user's roles, so setting them here cannot
+      # loosen anything another role tightened.
+      client_idle_timeout            = "1h0m0s"
+      disconnect_expired_cert        = true
       enhanced_recording             = ["command", "network"]
       create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
@@ -148,12 +158,17 @@ resource "teleport_role" "dev_auto_access" {
 
   metadata = {
     name        = "dev-auto-access"
-    description = "Dev access with auto user provisioning for RDS databases"
+    description = "IAC: Dev access with auto user provisioning for RDS databases"
   }
 
   spec = {
     options = {
-      max_session_ttl                = "8h0m0s"
+      max_session_ttl = "8h0m0s"
+      # Session hygiene, per the access-controls reference. Both evaluate as
+      # the MOST RESTRICTIVE across a user's roles, so setting them here cannot
+      # loosen anything another role tightened.
+      client_idle_timeout            = "1h0m0s"
+      disconnect_expired_cert        = true
       enhanced_recording             = ["command", "network"]
       create_db_user                 = true
       create_db_user_mode            = 2 # keep (db users: 2, NOT 3)
@@ -196,12 +211,21 @@ resource "teleport_role" "platform_dev_access" {
 
   metadata = {
     name        = "platform-dev-access"
-    description = "Standing access to all dev resources for the platform team"
+    description = "IAC: Standing access to all dev resources for the platform team"
   }
 
   spec = {
     options = {
-      max_session_ttl                = "8h0m0s"
+      max_session_ttl = "8h0m0s"
+      # Session hygiene, per the access-controls reference. Both evaluate as
+      # the MOST RESTRICTIVE across a user's roles, so setting them here cannot
+      # loosen anything another role tightened.
+      client_idle_timeout     = "1h0m0s"
+      disconnect_expired_cert = true
+      # strict: if the lock subsystem cannot be consulted, FAIL CLOSED rather
+      # than allow. strict wins over best_effort when roles disagree. Applied
+      # only to prod/cross-team roles -- it trades availability for safety.
+      lock                           = "strict"
       enhanced_recording             = ["command", "network"]
       create_host_user_mode          = 3 # keep
       create_host_user_default_shell = "/bin/bash"
@@ -275,12 +299,21 @@ resource "teleport_role" "prod_readonly_access" {
 
   metadata = {
     name        = "prod-readonly-access"
-    description = "Read-only access to prod resources (requires approval)"
+    description = "IAC: Read-only access to prod resources (requires approval)"
   }
 
   spec = {
     options = {
-      max_session_ttl    = "4h0m0s"
+      max_session_ttl = "4h0m0s"
+      # Session hygiene, per the access-controls reference. Both evaluate as
+      # the MOST RESTRICTIVE across a user's roles, so setting them here cannot
+      # loosen anything another role tightened.
+      client_idle_timeout     = "1h0m0s"
+      disconnect_expired_cert = true
+      # strict: if the lock subsystem cannot be consulted, FAIL CLOSED rather
+      # than allow. strict wins over best_effort when roles disagree. Applied
+      # only to prod/cross-team roles -- it trades availability for safety.
+      lock               = "strict"
       enhanced_recording = ["command", "network"]
       # KEEP, not unspecified. This role grants `logins` and prod node_labels,
       # so it matches prod nodes -- and Teleport disables host user creation for
@@ -336,12 +369,21 @@ resource "teleport_role" "prod_access" {
 
   metadata = {
     name        = "prod-access"
-    description = "Full access to prod resources (requires approval)"
+    description = "IAC: Full access to prod resources (requires approval)"
   }
 
   spec = {
     options = {
-      max_session_ttl                = "2h0m0s"
+      max_session_ttl = "2h0m0s"
+      # Session hygiene, per the access-controls reference. Both evaluate as
+      # the MOST RESTRICTIVE across a user's roles, so setting them here cannot
+      # loosen anything another role tightened.
+      client_idle_timeout     = "1h0m0s"
+      disconnect_expired_cert = true
+      # strict: if the lock subsystem cannot be consulted, FAIL CLOSED rather
+      # than allow. strict wins over best_effort when roles disagree. Applied
+      # only to prod/cross-team roles -- it trades availability for safety.
+      lock                           = "strict"
       require_session_mfa            = 1
       enhanced_recording             = ["command", "network"]
       create_host_user_mode          = 3 # keep
@@ -416,12 +458,21 @@ resource "teleport_role" "prod_auto_access" {
 
   metadata = {
     name        = "prod-auto-access"
-    description = "Prod access with auto user provisioning for RDS databases (requires approval)"
+    description = "IAC: Prod access with auto user provisioning for RDS databases (requires approval)"
   }
 
   spec = {
     options = {
-      max_session_ttl                = "2h0m0s"
+      max_session_ttl = "2h0m0s"
+      # Session hygiene, per the access-controls reference. Both evaluate as
+      # the MOST RESTRICTIVE across a user's roles, so setting them here cannot
+      # loosen anything another role tightened.
+      client_idle_timeout     = "1h0m0s"
+      disconnect_expired_cert = true
+      # strict: if the lock subsystem cannot be consulted, FAIL CLOSED rather
+      # than allow. strict wins over best_effort when roles disagree. Applied
+      # only to prod/cross-team roles -- it trades availability for safety.
+      lock                           = "strict"
       enhanced_recording             = ["command", "network"]
       create_db_user                 = true
       create_db_user_mode            = 2 # keep (db users: 2, NOT 3)
@@ -466,7 +517,7 @@ resource "teleport_role" "dev_requester" {
 
   metadata = {
     name        = "dev-requester"
-    description = "Devs can request prod-readonly-access"
+    description = "IAC: Devs can request prod-readonly-access"
   }
 
   spec = {
@@ -485,7 +536,7 @@ resource "teleport_role" "senior_dev_requester" {
 
   metadata = {
     name        = "senior-dev-requester"
-    description = "Senior devs can request prod-readonly, prod-access, and prod-auto-access"
+    description = "IAC: Senior devs can request prod-readonly, prod-access, and prod-auto-access"
   }
 
   spec = {
@@ -512,7 +563,7 @@ resource "teleport_role" "prod_requester" {
 
   metadata = {
     name        = "prod-requester"
-    description = "Platform engineers can request prod-readonly, prod-access, and prod-auto-access"
+    description = "IAC: Platform engineers can request prod-readonly, prod-access, and prod-auto-access"
   }
 
   spec = {
@@ -543,7 +594,7 @@ resource "teleport_role" "dev_reviewer" {
 
   metadata = {
     name        = "dev-reviewer"
-    description = "Can approve dev access requests"
+    description = "IAC: Can approve dev access requests"
   }
 
   spec = {
@@ -567,7 +618,7 @@ resource "teleport_role" "prod_reviewer" {
 
   metadata = {
     name        = "prod-reviewer"
-    description = "Can approve prod access requests"
+    description = "IAC: Can approve prod access requests"
   }
 
   spec = {
