@@ -1152,8 +1152,52 @@ resource "kubectl_manifest" "access_list_homelab" {
           frequency = "6months"
         }
       }
+      # DATA-PLANE ROLES ADDED 2026-09-21, mirroring presales' `engineers`
+      # list (control-plane/eks/3-rbac/roles.tf). Before this the list granted
+      # only control-plane roles, and SSH and database access were both
+      # non-functional for the personal identity:
+      #
+      #   tsh ssh -> "Failed to launch: user: unknown user dlg"
+      #   mysql   -> "Access denied for user 'dlg'@'localhost'"
+      #   pg      -> 'role "dlg" does not exist', and NO database list at all
+      #
+      # Root cause is the same defect `homelab-kube` above was created to fix,
+      # in three more dimensions. The `access` preset grants
+      # logins/db_users/db_names as '{{internal.*}}' TEMPLATES; this user has
+      # no such traits, so all three render EMPTY (a missing variable renders
+      # empty, it does not error). node_labels '*':'*' still matches, so nodes
+      # and databases are LISTED while being unusable -- the same
+      # "half-working, reads like a broken cluster" failure documented above.
+      #
+      # platform-dev-access is what actually fixes it: env=dev / team=* covers
+      # dev-postgres and dev-mysql, it carries create_host_user_mode=keep, and
+      # its db_users include the LITERAL reader/writer that those databases
+      # actually have (they are cert-authenticated; there is no 'dlg' user in
+      # either engine, which is why connecting as dlg failed rather than being
+      # a permissions problem).
+      #
+      # STILL NOT COVERED: env=home. lgm and siem carry env=home, and no
+      # presales role matches that label because presales has no such nodes.
+      # Mirroring alone therefore cannot fix SSH to those two; that needs a
+      # homelab-scoped role in the shape of homelab-kube above.
       grants = {
-        roles = ["access", "auditor", "config-reader", "admin-requester", "homelab-kube"]
+        roles = [
+          # existing control-plane grants, unchanged
+          "access", "auditor", "config-reader", "admin-requester", "homelab-kube",
+          # data plane, mirroring presales `engineers`
+          "platform-dev-access", "dev-auto-access", "prod-readonly-access",
+          "team-access",
+          # access-request paths, same bundle
+          "prod-requester", "prod-reviewer", "dev-reviewer",
+        ]
+        # REQUIRED, not decoration: team-access scopes node_labels to
+        # team: '{{external["team-name"]}}'. Without the trait it renders
+        # empty and the role grants nothing. presales sets this on the list
+        # too ('dev' for engineers, 'platform' for senior-devs); the homelab
+        # nodes are all team=platform, so platform is the value that matches.
+        traits = {
+          "team-name" = ["platform"]
+        }
       }
     }
   })
