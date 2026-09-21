@@ -16,7 +16,12 @@ export DEBIAN_FRONTEND=noninteractive
 hostnamectl set-hostname "${name}" || true
 
 apt-get update -qq
-apt-get install -y -qq mariadb-server curl ca-certificates
+# `sudo` IS LOAD-BEARING -- see the note in provision-postgres.sh.tpl. Teleport
+# host user management needs `visudo`; without it the agent silently disables
+# it at DEBUG level and every session fails with "unknown user X" even though
+# create_host_user_mode is keep. Listed explicitly so it cannot vanish as an
+# incidental dependency of the database package.
+apt-get install -y -qq mariadb-server curl ca-certificates sudo
 
 systemctl enable mariadb
 systemctl start mariadb

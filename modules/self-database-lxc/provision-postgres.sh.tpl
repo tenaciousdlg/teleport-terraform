@@ -14,7 +14,16 @@ export DEBIAN_FRONTEND=noninteractive
 hostnamectl set-hostname "${name}" || true
 
 apt-get update -qq
-apt-get install -y -qq postgresql postgresql-contrib curl ca-certificates jq
+# `sudo` IS LOAD-BEARING and is listed explicitly rather than arriving as
+# somebody else's dependency. Teleport's host user management requires
+# `visudo`, and without it the agent logs, at DEBUG only:
+#   Skipping host user management  missing required binaries: visudo
+#   Not creating host user: node has disabled host user creation
+# and every SSH session dies with "Failed to launch: user: unknown user X"
+# -- regardless of create_host_user_mode being keep on every matching role.
+# That cost a long diagnosis on CT104 (siem), which was hand-built on a Debian
+# template with no sudo. It looks exactly like an RBAC problem and is not one.
+apt-get install -y -qq postgresql postgresql-contrib curl ca-certificates jq sudo
 
 PGVER="$(ls /etc/postgresql | sort -V | tail -1)"
 PGCONF="/etc/postgresql/$PGVER/main"

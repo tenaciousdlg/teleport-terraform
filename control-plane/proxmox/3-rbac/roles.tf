@@ -1152,6 +1152,63 @@ resource "kubectl_manifest" "role_homelab_kube" {
   })
 }
 
+# App access for the personal identity, replacing the `access` PRESET.
+#
+# WHY DROP `access`: it broke host user creation on EVERY node, cluster-wide.
+# Measured 2026-09-21 -- `tsh ssh chris@siem` and `tsh ssh chris@dev-postgres`
+# both failed with "Failed to launch: user: unknown user chris" even though
+# homelab-ssh and platform-dev-access BOTH set create_host_user_mode: keep.
+# Enumerating every node-matching role I held found exactly one without the
+# option set:
+#
+#   access                 <unset>   node_labels {'*': '*'}   <-- poisons
+#   dev-auto-access        keep      {env: dev, team: [dev, platform]}
+#   homelab-ssh            keep      {env: home, team: platform}
+#   platform-dev-access    keep      {env: dev, team: '*'}
+#   prod-readonly-access   keep      {env: prod, team: platform}
+#   team-access            keep      {env: dev, team: '{{external.team-name}}'}
+#
+# So the note in ~/github/CLAUDE.md is right: a matching role that leaves the
+# mode UNSET cancels `keep` elsewhere, and `node_labels '*':'*'` means it
+# matches everything. The roles reference documents how explicit values
+# combine but is silent on unset, so this is empirical, not doc-backed.
+#
+# AND `access` WAS GIVING US ALMOST NOTHING. Every one of its grants is an
+# `{{internal.*}}` template -- logins, db_users, db_names, kubernetes_groups,
+# desktop logins -- and a SCIM user here carries no static traits, so they all
+# render EMPTY. The only thing it actually provided was app visibility via
+# app_labels '*':'*'. That is what this role replaces, scoped to the estate's
+# own labels instead of a wildcard.
+#
+# BLAST RADIUS: `access` is granted by the `homelab` access list ONLY --
+# engineers, devs, senior-devs and visiting-ses do not grant it (checked
+# against every list on the cluster). So dropping it affects the personal
+# identity and nobody else. Audit reads it also carried (event/session) are
+# already covered by `auditor` and `config-reader` in the same grant.
+#
+# DELIBERATELY NO node_labels. This role must never be able to poison host
+# user creation the way `access` did; app access needs no node match.
+resource "kubectl_manifest" "role_homelab_apps" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "homelab-apps"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "IAC: app access for the personal identity (replaces the access preset)"
+    }
+    spec = {
+      allow = {
+        # grafana and ollama both carry env=home, team=platform.
+        app_labels = {
+          env  = ["home"]
+          team = ["platform"]
+        }
+      }
+    }
+  })
+}
+
 # SSH to the env=home machines for the personal identity.
 #
 # WHY A SEPARATE ROLE: no presales role matches env=home, because presales has
@@ -1259,8 +1316,14 @@ resource "kubectl_manifest" "access_list_homelab" {
       # homelab-scoped role in the shape of homelab-kube above.
       grants = {
         roles = [
-          # existing control-plane grants, unchanged
-          "access", "auditor", "config-reader", "admin-requester", "homelab-kube",
+          # control-plane grants. `access` was REMOVED 2026-09-21: it matched
+          # every node with create_host_user_mode unset, which disabled host
+          # user creation cluster-wide and made SSH fail with "unknown user"
+          # despite two other roles setting keep. homelab-apps replaces the
+          # only thing it actually provided (app visibility). See the role
+          # definition above for the measurements.
+          "auditor", "config-reader", "admin-requester",
+          "homelab-kube", "homelab-apps",
           # env=home SSH (lgm, siem) -- not covered by any presales role
           "homelab-ssh",
           # data plane, mirroring presales `engineers`
