@@ -921,6 +921,14 @@ resource "kubectl_manifest" "access_list_devs" {
         # team-access = the ABAC role: shared by all tiers, per-user scope
         # via the team-name trait (see role_team_access).
         roles = ["dev-access", "dev-auto-access", "dev-requester", "team-access"]
+        # Database scope by the same ABAC mechanism as team-name. The db roles
+        # already read {{external.db_names}}; this is what makes that expand
+        # to something. Until the "*" is removed from those roles (phase 2,
+        # see variables.tf) this changes NO access, only what the Web UI
+        # connect dialog can offer.
+        traits = {
+          "db_names" = var.db_names_by_access_list["devs"]
+        }
       }
     }
   })
@@ -953,6 +961,7 @@ resource "kubectl_manifest" "access_list_senior_devs" {
         # platform-dev-access's team=* intent, but visible/governable here.
         traits = {
           "team-name" = ["platform"]
+          "db_names"  = var.db_names_by_access_list["senior-devs"]
         }
       }
     }
@@ -991,6 +1000,7 @@ resource "kubectl_manifest" "access_list_engineers" {
         # literals, not expressions; applied at next login, never live.
         traits = {
           "team-name" = ["dev"]
+          "db_names"  = var.db_names_by_access_list["engineers"]
         }
       }
     }
@@ -1026,6 +1036,11 @@ resource "kubectl_manifest" "access_list_visiting_ses" {
         roles = ["platform-dev-access", "dev-auto-access", "prod-readonly-access", "dev-reviewer", "prod-requester", "prod-reviewer", "auditor", "team-access", "config-reader", "admin-requester"]
         traits = {
           "team-name" = ["platform", "dev"]
+          # Same bundle as engineers, so the same database scope. Without
+          # this line phase 2 would silently strip every visiting SE's
+          # database access, and the failure mode is an empty dropdown that
+          # looks like the UI bug this change set exists to fix.
+          "db_names" = var.db_names_by_access_list["engineers"]
         }
       }
     }
@@ -1339,6 +1354,20 @@ resource "kubectl_manifest" "access_list_homelab" {
         # nodes are all team=platform, so platform is the value that matches.
         traits = {
           "team-name" = ["platform"]
+          # SAME REASONING, for databases. The comment above records that pg
+          # showed "NO database list at all" because db_names rendered empty
+          # from an {{internal.*}} template. platform-dev-access fixed the
+          # db_users half by carrying literal reader/writer, but db_names is
+          # still `["{{external.db_names}}", "*"]`, so the wildcard is the
+          # only thing granting access and the Web UI drops it from the
+          # dropdown -- which is why the connect dialog is still empty.
+          #
+          # This is also the entry that stops phase 2 (removing "*") from
+          # locking the estate owner out of every database. Adding it here
+          # was not optional: this list is 13 roles and the personal
+          # identity, and it is easy to miss when editing the four SCIM
+          # tiers next to each other.
+          "db_names" = var.db_names_by_access_list["engineers"]
         }
       }
     }

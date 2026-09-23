@@ -84,6 +84,38 @@ variable "access_list_owner" {
   type        = string
 }
 
+variable "db_names_by_access_list" {
+  # Which logical databases each access list grants, as the `db_names` TRAIT.
+  #
+  # WHY A TRAIT AND NOT A ROLE FIELD. Every db role here already reads
+  # `{{external.db_names}}` (8 of them, see roles.tf). Access-list
+  # grants.traits merge into the SAME `external` namespace as IdP-asserted
+  # traits -- verified by team-access, which reads an access-list-granted
+  # trait as {{external["team-name"]}}. So granting the trait here needs no
+  # role change at all, and membership stays the only lever.
+  #
+  # WHY IT IS ALSO THE UI FIX. The Web UI's connect dialog filters "*" out of
+  # the dropdown (prepareOptions in ConnectDialog.tsx) and shows an empty
+  # "Select...". Concrete names render as real options.
+  #
+  # THESE DEFAULTS ARE A GUESS AND SHOULD BE CORRECTED. They come from
+  # modules/self-database-lxc, which provisions a postgres database `postgres`
+  # and a mysql database `demo`. Nobody has enumerated the live set. Fix them
+  # before phase 2 below, because a name that is not listed here becomes a
+  # name nobody can reach.
+  #
+  # NOTE db_names is NOT enforced for MySQL (vendor docs). On MySQL these are
+  # dropdown contents only; on Postgres/MongoDB they are access control.
+  description = "Logical database names granted as the db_names trait, keyed by access list name."
+  type        = map(list(string))
+  default = {
+    "devs"        = ["demo"]
+    "senior-devs" = ["demo", "postgres"]
+    "engineers"   = ["demo", "postgres"]
+    "contractors" = ["demo"]
+  }
+}
+
 variable "chrisdlg_saml_entity_descriptor" {
   # The Okta app's SAML metadata XML, inline. NOT entity_descriptor_url: that
   # endpoint returns 403 without an API token, verified from both this Mac and
