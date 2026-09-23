@@ -139,6 +139,9 @@ Each layer has its own **local** backend (`terraform.tfstate` in-directory) and 
   before enabling. Phase 1 is **local auth**; the roles/AMRs/access-lists/kube-RBAC
   all apply without SSO. SCIM (`4-plugins/scim.tf`) is likewise a Phase-2 manual
   bootstrap.
-- **5-access-graph** (and any cost tooling) not ported.
+- ~~**5-access-graph** (and any cost tooling) not ported.~~ **STALE, corrected
+  2026-09-22.** `5-access-graph/` exists, is applied and carries its own state
+  (Identity Security went live 2026-09-20). Only the cost tooling is unported.
+  Add it to the apply order below when touching this file next.
 - The `local-path` PVC is single-node and not backed up — fine for a demo replica;
   don't treat session recordings here as durable.
