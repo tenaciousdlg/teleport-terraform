@@ -98,20 +98,39 @@ variable "db_names_by_access_list" {
   # the dropdown (prepareOptions in ConnectDialog.tsx) and shows an empty
   # "Select...". Concrete names render as real options.
   #
-  # THESE DEFAULTS ARE A GUESS AND SHOULD BE CORRECTED. They come from
-  # modules/self-database-lxc, which provisions a postgres database `postgres`
-  # and a mysql database `demo`. Nobody has enumerated the live set. Fix them
-  # before phase 2 below, because a name that is not listed here becomes a
-  # name nobody can reach.
+  # ENUMERATED LIVE 2026-09-22, not guessed. Two databases are registered,
+  # and only one of them enforces this field:
   #
-  # NOTE db_names is NOT enforced for MySQL (vendor docs). On MySQL these are
-  # dropdown contents only; on Postgres/MongoDB they are access control.
+  #   postgres-dev  CT105  postgres  ENFORCES db_names
+  #                        logical db: `postgres` (audit_demo, customers, orders)
+  #                        `template1` exists but is not a real target
+  #   mysql-dev     CT106  mysql     IGNORES db_names (vendor docs + UI agree)
+  #                        logical db: `demo` (customers, orders)
+  #
+  # THE TRAP THIS FIXES. The first version of this map gave devs ["demo"]
+  # only. `demo` does not exist in Postgres, and Postgres is the engine that
+  # enforces the field, so at phase 2 every dev would have been locked out of
+  # postgres-dev while the MySQL half kept working. A name that is not listed
+  # here is a name nobody can reach, and the failure is an empty dropdown that
+  # looks exactly like the UI bug this whole change set exists to fix.
+  #
+  # SO: any tier that should reach postgres-dev MUST list `postgres`.
+  #
+  # db_names is a WEAK RBAC axis in this estate and should not be leaned on.
+  # There are two databases, one engine ignores the field, and the real
+  # separation is already carried by db_users (reader vs writer) and
+  # db_labels (env). It is included because it is what populates the Web UI
+  # connect dialog and because it is the axis that makes contractors' Postgres
+  # exclusion actually enforced.
   description = "Logical database names granted as the db_names trait, keyed by access list name."
   type        = map(list(string))
   default = {
-    "devs"        = ["demo"]
-    "senior-devs" = ["demo", "postgres"]
-    "engineers"   = ["demo", "postgres"]
+    "devs"        = ["postgres", "demo"]
+    "senior-devs" = ["postgres", "demo"]
+    "engineers"   = ["postgres", "demo"]
+    # Deliberately NOT `postgres`. This is the one genuinely enforced
+    # restriction in the contractor tier: MySQL read-only via db_users=reader,
+    # and no Postgres at all because the name is absent and Postgres checks.
     "contractors" = ["demo"]
   }
 }
