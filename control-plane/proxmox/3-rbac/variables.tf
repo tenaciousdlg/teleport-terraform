@@ -190,3 +190,12 @@ variable "terraform_bot_public_key" {
   type        = string
   default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpqp8Sg8zH7jca/mZoOvyeTQh/C6VR72c1/KCdlkamK"
 }
+
+variable "usage_exporter_public_key" {
+  # A PUBLIC key, deliberately in the repo as the default. Generated on CT104
+  # with `tbot keypair create` (see usage-exporter.tf for the exact command).
+  # It is host-specific: rebuild CT104 and this changes.
+  description = "Pre-registered bound_keypair public key for the teleport-usage exporter bot on CT104."
+  type        = string
+  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILOQQtZMQAS0e2efB/9bVMp3F27Jfrwh+wg/0gy6hLL8"
+}
