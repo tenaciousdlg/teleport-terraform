@@ -59,6 +59,21 @@ resource "teleport_role" "usage_exporter" {
           resources = ["cluster_auth_preference"]
           verbs     = ["read"]
         },
+        {
+          # ADDED after the first live run, which is why it is worth recording.
+          # My source scan covered resources.go, mwi.go and authpref.go and
+          # MISSED the `SearchEvents` call in tpr.go and mau.go, so the first
+          # apply produced:
+          #   [ERROR] Failed to fetch events: access denied to perform action
+          #   "list" on "event"
+          # Everything else still worked (TPR 9, Bots 6, rows written to
+          # Postgres); the only casualty was "SPIFFE IDs Issued", which reads
+          # audit events and reported 0. A partial-permission failure that
+          # still returns a plausible number is exactly the shape that gets
+          # shipped unnoticed.
+          resources = ["event"]
+          verbs     = ["read", "list"]
+        },
       ]
 
       # The heartbeat kinds are ALSO gated by label matchers, separately from
