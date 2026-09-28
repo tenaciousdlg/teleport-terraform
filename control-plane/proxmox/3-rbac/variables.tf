@@ -135,17 +135,27 @@ variable "db_names_by_access_list" {
   }
 }
 
-variable "chrisdlg_saml_entity_descriptor" {
+variable "saml_entity_descriptor" {
   # The Okta app's SAML metadata XML, inline. NOT entity_descriptor_url: that
   # endpoint returns 403 without an API token, verified from both this Mac and
   # from inside the cluster, so Teleport cannot fetch it itself.
   #
-  # Source it from the okta repo rather than pasting:
-  #   terraform -chdir=~/github/okta output -raw chrisdlg_teleport_saml_metadata
+  # RENAMED 2026-09-27 from `chrisdlg_saml_entity_descriptor`. That name
+  # predated the migration and was actively misleading once this config started
+  # building heronwright: the variable takes whichever cluster's metadata the
+  # WORKSPACE is for, so a chrisdlg-specific name described one caller out of
+  # two. The rename was previously recorded as blocked on retiring the chrisdlg
+  # workspace; it never was. A variable is not stored in state, so renaming one
+  # is a config-only change with no state migration and no `moved` block, which
+  # is why this needed no coordination with any workspace at all.
+  #
+  # Source it from the okta repo rather than pasting, picking the output that
+  # matches the workspace you are applying:
+  #   terraform -chdir=~/github/okta output -raw heronwright_teleport_saml_metadata
   #
   # Kept out of this repo like the other IdP values -- set
-  # TF_VAR_chrisdlg_saml_entity_descriptor locally. Empty creates no connector.
-  description = "SAML metadata XML for the teleport.chrisdlg.com Okta app. Empty disables the connector."
+  # TF_VAR_saml_entity_descriptor locally. Empty creates no connector.
+  description = "SAML metadata XML for this workspace's Teleport Okta app. Empty disables the connector."
   type        = string
   default     = ""
 }
@@ -174,7 +184,7 @@ variable "estate_agents" {
 #     died with `Invalid index ... each.key is "lgm"` -- an error that reads
 #     like a for_each bug and was an unexported variable. That is gone.
 #   - this layer no longer needs ANY sensitive variable to plan. The only
-#     remaining external one is chrisdlg_saml_entity_descriptor, which is
+#     remaining external one is saml_entity_descriptor, which is
 #     public IdP metadata rather than a secret.
 
 variable "terraform_bot_public_key" {
@@ -198,4 +208,30 @@ variable "usage_exporter_public_key" {
   description = "Pre-registered bound_keypair public key for the teleport-usage exporter bot on CT104."
   type        = string
   default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILOQQtZMQAS0e2efB/9bVMp3F27Jfrwh+wg/0gy6hLL8"
+}
+
+variable "saml_mfa_entity_descriptor" {
+  description = <<-EOT
+    Metadata XML of the SECOND Okta app that handles SSO MFA checks.
+
+    THE XML, NOT THE URL. Teleport fetches `entity_descriptor_url`, and Okta's
+    app metadata URL is an admin API path requiring an SSWS token, so the
+    fetch fails and the operator reports "failed to fetch or parse entity
+    descriptor" -- which reads like malformed XML and is an auth failure.
+
+    Empty omits the connector's `mfa` block entirely, which is the default and
+    what keeps the chrisdlg workspace unchanged — per-session MFA there is
+    deferred (Chris, 2026-09-27: "I'll wait to do this on the new cluster when
+    we migrate").
+
+    Get it with:
+      terraform -chdir=$HOME/github/okta output -raw \
+        heronwright_teleport_mfa_metadata
+
+    NOT the login app's metadata. The two apps share an ACS URL and audience
+    but are distinct apps with different sign-on policies; pointing this at the
+    login app gives you an MFA check that never actually challenges.
+  EOT
+  type        = string
+  default     = ""
 }
