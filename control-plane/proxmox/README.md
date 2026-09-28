@@ -91,9 +91,22 @@ the outputs populate.
 
 ## Prerequisites
 
-1. **Proxmox API token** on `hollowtree` (e.g. `terraform@pve!tf=...`). Export as
-   `PROXMOX_VE_ENDPOINT` / `PROXMOX_VE_API_TOKEN` (or `TF_VAR_proxmox_*`). Never
-   commit it.
+1. **Proxmox API token** on `hollowtree` (`root@pam!terraform`, `privsep=0`).
+   **It lives in Vault at `secret/proxmox/api` and is read at plan time:**
+
+   ```sh
+   . ~/github/homelab/proxmox/vault-env.sh && terraform plan -var-file=<cluster>.tfvars
+   ```
+
+   Source it in the SAME shell as the terraform command and do not pipe it, or
+   the exports are lost to the subshell while the success message still prints.
+   That one script serves this layer and the two `database-access-*-proxmox`
+   layers, which until 2026-09-27 each kept their own plaintext copy in a
+   gitignored `terraform.tfvars`. Those lines are removed: **a `-var-file` beats
+   a `TF_VAR_` env var**, so a leftover line silently wins and the apply keeps
+   using the old credential while reporting success. The token was rotated on
+   2026-09-27 after it was printed into a transcript; rotation is one command,
+   documented in the script's header, and touches no layer.
 2. **SSH to the Proxmox node** (`root@192.168.1.10` by default, via your
    ssh-agent — `ssh { agent = true }`). Used both by the provider and by the
    `1-cluster` `null_resource`s that (a) append the raw `lxc.*` keys to
