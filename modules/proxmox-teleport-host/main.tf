@@ -22,6 +22,7 @@ locals {
     token_name      = local.token_name
     labels          = var.labels
     apps            = var.apps
+    mcp_apps        = var.mcp_apps
     static_key_path = local.static_key_path
   })
 
@@ -178,6 +179,46 @@ resource "terraform_data" "agent_config" {
          pct exec ${var.vm_id} -- systemctl restart teleport
          sleep 10
          pct exec ${var.vm_id} -- systemctl is-active teleport"
+    EOT
+  }
+}
+
+# ---- Payload -----------------------------------------------------------------
+#
+# Whatever this host actually serves. Runs AFTER the agent is up, so a failure
+# here leaves a reachable host to debug on rather than an invisible one.
+#
+# Delivered with scp + `pct push` and then executed, never piped to
+# `pct exec` stdin. PATH is exported for the same reason the bootstrap does it:
+# `pct exec` omits /usr/local/bin.
+resource "terraform_data" "payload" {
+  count      = var.provision_script != "" ? 1 : 0
+  depends_on = [terraform_data.agent_config]
+
+  triggers_replace = {
+    vm_id  = var.vm_id
+    script = sha256(var.provision_script)
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+      P=$(mktemp)
+      {
+        echo '#!/usr/bin/env bash'
+        echo 'export PATH="/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+        cat <<'PAYLOAD'
+      ${var.provision_script}
+      PAYLOAD
+      } > "$P"
+      scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 "$P" '${var.proxmox_ssh}:/tmp/payload-${var.name}.sh'
+      rm -f "$P"
+      ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 '${var.proxmox_ssh}' \
+        "set -e
+         pct push ${var.vm_id} /tmp/payload-${var.name}.sh /root/payload.sh --perms 0700
+         rm -f /tmp/payload-${var.name}.sh
+         pct exec ${var.vm_id} -- /root/payload.sh"
     EOT
   }
 }

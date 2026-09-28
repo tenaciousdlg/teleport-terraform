@@ -35,13 +35,27 @@ ssh_service:
     ${k}: ${v}
 %{ endfor ~}
 
-%{ if length(apps) > 0 ~}
+%{ if length(apps) > 0 || length(mcp_apps) > 0 ~}
 app_service:
   enabled: true
   apps:
 %{ for a in apps ~}
     - name: ${a.name}
       uri: ${a.uri}
+      labels:
+%{ for k, v in labels ~}
+        ${k}: ${v}
+%{ endfor ~}
+%{ endfor ~}
+%{ for m in mcp_apps ~}
+    # stdio MCP server. No `uri`: Teleport LAUNCHES this command on demand and
+    # proxies stdio. run_as_host_user is required and the app will not start
+    # without it.
+    - name: ${m.name}
+      mcp:
+        command: ${m.command}
+        args: ${jsonencode(m.args)}
+        run_as_host_user: ${m.run_as_host_user}
       labels:
 %{ for k, v in labels ~}
         ${k}: ${v}

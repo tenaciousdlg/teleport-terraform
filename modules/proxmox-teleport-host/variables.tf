@@ -137,3 +137,25 @@ variable "datastore_id" {
   type        = string
   default     = "ember"
 }
+
+variable "mcp_apps" {
+  description = <<-EOT
+    stdio MCP servers to expose. These are app_service entries but take an
+    `mcp` stanza instead of a `uri`: Teleport LAUNCHES the command on demand and
+    proxies stdio, rather than proxying to a listening address.
+
+    `run_as_host_user` is REQUIRED for stdio MCP servers — it is the account the
+    command runs as, and Teleport will not start one without it.
+
+    Access needs the `mcp-user` preset role, or a role allowing app_labels
+    `teleport.internal/app-sub-kind: mcp` plus `mcp.tools`. A host serving these
+    also needs BOTH `Node` and `App` token roles.
+  EOT
+  type = list(object({
+    name             = string
+    command          = string
+    args             = list(string)
+    run_as_host_user = string
+  }))
+  default = []
+}
