@@ -170,3 +170,20 @@ variable "k3s_version" {
   type        = string
   default     = ""
 }
+
+variable "k3s_additional_sans" {
+  description = <<-EOT
+    Extra --tls-san entries for the k3s API server certificate, beyond
+    container_ip.
+
+    SET AT INSTALL AND ONLY AT INSTALL. Adding one later means restarting k3s
+    and regenerating the serving cert, so any name that might ever be wanted
+    belongs here from the start — it is nearly free during a build and
+    expensive afterwards.
+
+    Empty preserves the original single-SAN behaviour exactly, so the existing
+    chrisdlg cluster is unaffected.
+  EOT
+  type        = list(string)
+  default     = []
+}

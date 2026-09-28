@@ -38,9 +38,22 @@ locals {
   # - --write-kubeconfig-mode 644: so the fetch step can read k3s.yaml.
   # - --tls-san <container_ip>: so the API server cert is valid for the IP the
   #   downstream providers dial (https://<container_ip>:6443).
-  k3s_env_prefix   = var.k3s_version != "" ? "INSTALL_K3S_VERSION=${var.k3s_version} " : ""
-  k3s_install_cmd  = "curl -sfL https://get.k3s.io | ${local.k3s_env_prefix}INSTALL_K3S_EXEC='--disable traefik --write-kubeconfig-mode 644 --tls-san ${var.container_ip}' sh -"
+  k3s_env_prefix = var.k3s_version != "" ? "INSTALL_K3S_VERSION=${var.k3s_version} " : ""
+  # EXTRA SANs ARE SET AT INSTALL AND ONLY AT INSTALL. Adding one later means
+  # restarting k3s and regenerating the serving cert, so a name that might ever
+  # be wanted belongs here from the start. This is the fold-in Chris asked for
+  # ("Why not use DHCP? It is 2026"): give the API server a NAME so the node's
+  # IP stops being load-bearing and the kubeconfig can point at something that
+  # follows the host.
+  k3s_extra_sans   = join("", [for s in var.k3s_additional_sans : " --tls-san ${s}"])
+  k3s_install_cmd  = "curl -sfL https://get.k3s.io | ${local.k3s_env_prefix}INSTALL_K3S_EXEC='--disable traefik --write-kubeconfig-mode 644 --tls-san ${var.container_ip}${local.k3s_extra_sans}' sh -"
   kubeconfig_local = "${path.module}/kubeconfig"
+
+  # systemd-tmpfiles rule that recreates /dev/kmsg on every container start.
+  # Type `L` = create a symlink, and ONLY if the path does not already exist, so
+  # this is idempotent and harmless on a host that provides a real /dev/kmsg.
+  # Argument column (last field) is the link target. See terraform_data.kmsg_persist.
+  kmsg_tmpfiles_rule = "L /dev/kmsg - - - - /dev/console"
 }
 
 resource "proxmox_virtual_environment_container" "k3s" {
@@ -219,6 +232,9 @@ for i in $(seq 1 20); do
   sleep 3
 done
 # k3s/kubelet needs /dev/kmsg; a privileged CT has none — point it at the console.
+# This call only covers the install itself. /dev is a tmpfs inside the CT, so the
+# symlink does NOT survive a container start; terraform_data.kmsg_persist below is
+# what makes it come back. See the comment on that resource.
 pct exec "$vmid" -- sh -c '[ -e /dev/kmsg ] || ln -s /dev/console /dev/kmsg'
 # curl + CA certs for the k3s installer.
 pct exec "$vmid" -- sh -c 'command -v curl >/dev/null 2>&1 || { apt-get update && apt-get install -y curl ca-certificates; }'
@@ -235,6 +251,61 @@ for i in $(seq 1 30); do
 done
 echo "ERROR: k3s node did not reach Ready in time" >&2
 exit 1
+REMOTE
+EOT
+  }
+}
+
+##################################################################################
+# /dev/kmsg ACROSS REBOOTS
+##################################################################################
+#
+# Why this exists, 2026-09-27: hollowtree rebooted, CT107 came back with it, and
+# k3s crash-looped 66 times with
+#
+#   Error: failed to run Kubelet: failed to create kubelet:
+#          open /dev/kmsg: no such file or directory
+#
+# for fourteen minutes, which took teleport.heronwright.com down (502 at the
+# edge: the tunnel was up, the origin was not). The k3s_install step above
+# creates the symlink, but /dev inside the CT is a tmpfs rebuilt on every
+# container start, so that symlink is gone the moment the CT restarts. It had
+# survived since the build only because nothing had restarted the container.
+#
+# A one-shot `ln -s` in a provisioner is therefore not a fix, it is a fix that
+# works until the first reboot. The persistent form is the systemd mechanism for
+# exactly this: a tmpfiles.d rule, applied by systemd-tmpfiles-setup-dev.service
+# during sysinit.target, long before k3s.service starts. That unit was confirmed
+# ACTIVE and ConditionResult=yes inside this CT before relying on it.
+#
+# `L` creates the symlink only when the path is absent, so it is idempotent and
+# a no-op on a host that does give the container a real /dev/kmsg.
+#
+# This is verified by REBOOTING the container, not by reading the file back.
+resource "terraform_data" "kmsg_persist" {
+  depends_on = [null_resource.k3s_install]
+
+  triggers_replace = {
+    vmid = proxmox_virtual_environment_container.k3s.vm_id
+    rule = local.kmsg_tmpfiles_rule
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<EOT
+set -euo pipefail
+ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 "${local.node_ssh}" bash -s <<'REMOTE'
+set -euo pipefail
+vmid="${proxmox_virtual_environment_container.k3s.vm_id}"
+tmp="$(mktemp)"
+cat > "$tmp" <<'TMPFILES'
+${local.kmsg_tmpfiles_rule}
+TMPFILES
+pct push "$vmid" "$tmp" /etc/tmpfiles.d/kmsg.conf --perms 0644
+rm -f "$tmp"
+pct exec "$vmid" -- systemd-tmpfiles --prefix=/dev --create
+pct exec "$vmid" -- test -L /dev/kmsg
+echo "kmsg tmpfiles rule installed and applied"
 REMOTE
 EOT
   }
