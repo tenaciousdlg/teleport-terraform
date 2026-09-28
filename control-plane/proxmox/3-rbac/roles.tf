@@ -1147,7 +1147,8 @@ resource "kubectl_manifest" "access_list_devs" {
         # see variables.tf) this changes NO access, only what the Web UI
         # connect dialog can offer.
         traits = {
-          "db_names" = var.db_names_by_access_list["devs"]
+          "db_names"      = var.db_names_by_access_list["devs"]
+          "aws_role_arns" = var.aws_role_arns_by_access_list["devs"]
         }
       }
     }
@@ -1180,8 +1181,9 @@ resource "kubectl_manifest" "access_list_senior_devs" {
         # team-access reaches both teams' dev nodes — mirroring
         # platform-dev-access's team=* intent, but visible/governable here.
         traits = {
-          "team-name" = ["platform"]
-          "db_names"  = var.db_names_by_access_list["senior-devs"]
+          "team-name"     = ["platform"]
+          "db_names"      = var.db_names_by_access_list["senior-devs"]
+          "aws_role_arns" = var.aws_role_arns_by_access_list["senior-devs"]
         }
       }
     }
@@ -1219,8 +1221,9 @@ resource "kubectl_manifest" "access_list_engineers" {
         # Identical values from both sides dedupe to one. Grant values are
         # literals, not expressions; applied at next login, never live.
         traits = {
-          "team-name" = ["dev"]
-          "db_names"  = var.db_names_by_access_list["engineers"]
+          "team-name"     = ["dev"]
+          "db_names"      = var.db_names_by_access_list["engineers"]
+          "aws_role_arns" = var.aws_role_arns_by_access_list["engineers"]
         }
       }
     }
@@ -1292,7 +1295,8 @@ resource "kubectl_manifest" "access_list_visiting_ses" {
           # this line phase 2 would silently strip every visiting SE's
           # database access, and the failure mode is an empty dropdown that
           # looks like the UI bug this change set exists to fix.
-          "db_names" = var.db_names_by_access_list["engineers"]
+          "db_names"      = var.db_names_by_access_list["engineers"]
+          "aws_role_arns" = var.aws_role_arns_by_access_list["visiting-ses"]
         }
       }
     }
@@ -1706,7 +1710,8 @@ resource "kubectl_manifest" "access_list_homelab" {
           # was not optional: this list is 13 roles and the personal
           # identity, and it is easy to miss when editing the four SCIM
           # tiers next to each other.
-          "db_names" = var.db_names_by_access_list["engineers"]
+          "db_names"      = var.db_names_by_access_list["engineers"]
+          "aws_role_arns" = var.aws_role_arns_by_access_list["homelab"]
         }
       }
     }

@@ -135,6 +135,30 @@ variable "db_names_by_access_list" {
   }
 }
 
+variable "aws_role_arns_by_access_list" {
+  # AWS IAM role ARNs granted as the `aws_role_arns` TRAIT, keyed by access
+  # list name. Same mechanism as db_names above and for the same reason:
+  # `dev-access`, `platform-dev-access` and `prod-access` already read
+  # `{{external.aws_role_arns}}`, and access-list `grants.traits` merge into
+  # the same `external` namespace that SSO assertions write to, so granting
+  # here needs NO role change. Membership stays the only lever.
+  #
+  # An empty list renders the template EMPTY rather than erroring, which is
+  # the safe direction: a list with no ARNs grants no AWS access.
+  #
+  # Populate per list in heronwright.tfvars. The values are plain ARNs, e.g.
+  # `arn:aws:iam::<account>:role/<name>`, and they are not secrets.
+  description = "AWS IAM role ARNs granted as the aws_role_arns trait, keyed by access list name."
+  type        = map(list(string))
+  default = {
+    "devs"         = []
+    "senior-devs"  = []
+    "engineers"    = []
+    "visiting-ses" = []
+    "homelab"      = []
+  }
+}
+
 variable "saml_entity_descriptor" {
   # The Okta app's SAML metadata XML, inline. NOT entity_descriptor_url: that
   # endpoint returns 403 without an API token, verified from both this Mac and
