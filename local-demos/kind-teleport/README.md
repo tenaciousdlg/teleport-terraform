@@ -7,7 +7,7 @@ useful for a spontaneous call where spinning up EKS/GKE isn't worth the wait.
 ## Usage
 
 ```bash
-export TELEPORT_PROXY_ADDR="presales.teleportdemo.com:443"
+export TELEPORT_PROXY_ADDR="presales.acme.example.com:443"
 export TELEPORT_JOIN_TOKEN="$(tctl tokens add --type=kube --format=text)"
 ./demo-up.sh
 tsh kube ls

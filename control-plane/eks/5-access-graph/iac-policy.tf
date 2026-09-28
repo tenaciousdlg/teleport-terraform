@@ -1,4 +1,4 @@
-# Ported from gravitational/teleport examples/identity-activity-center/policy.tf.
+# Ported from the upstream Teleport repo, examples/identity-activity-center/policy.tf.
 # Local edit: attach to the TAG IRSA role instead of emitting an output.
 
 # ========================================

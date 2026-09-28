@@ -48,14 +48,14 @@ TAG authenticates to RDS with short-lived IAM tokens instead of a stored passwor
 ### Step 1: Get the Teleport host CA
 
 ```bash
-export TF_VAR_teleport_host_ca="$(curl -s 'https://presales.teleportdemo.com/webapi/auth/export?type=tls-host')"
+export TF_VAR_teleport_host_ca="$(curl -s 'https://presales.acme.example.com/webapi/auth/export?type=tls-host')"
 ```
 
 ### Step 2: Apply this layer
 
 ```bash
 # See terraform.tfvars.example for all required variables
-export TF_VAR_proxy_address="presales.teleportdemo.com"
+export TF_VAR_proxy_address="presales.acme.example.com"
 export TF_VAR_env="dev"                     # matches the live stack
 export TF_VAR_db_password="<rds master password>"   # RDS requires one; TAG does not use it
 # TF_VAR_teleport_host_ca set above

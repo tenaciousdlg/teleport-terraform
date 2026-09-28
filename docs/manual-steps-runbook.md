@@ -9,7 +9,7 @@ This document covers the steps that cannot be automated by Terraform and must be
 Teleport provider credentials are short-lived and must be refreshed each session.
 
 ```bash
-tsh login --proxy=<your-cluster>        # e.g., presales.teleportdemo.com
+tsh login --proxy=<your-cluster>        # e.g., presales.acme.example.com
 eval $(tctl terraform env)              # exports TELEPORT_* env vars for the provider
 ```
 
@@ -33,7 +33,7 @@ kubectl exec -n teleport-cluster \
 ```
 
 The output includes four values you will need in the next step:
-- **Base URL** (e.g., `https://presales.teleportdemo.com/v1/webapi/scim/okta-integrator`)
+- **Base URL** (e.g., `https://presales.acme.example.com/v1/webapi/scim/okta-integrator`)
 - **Token URL**
 - **Client ID**
 - **Client Secret**
@@ -100,7 +100,7 @@ spec:
   bot_name: github-ci
   github:
     allow:
-      - repository: gravitational/rev-tech
+      - repository: your-org/your-repo
 EOF
 ```
 
@@ -109,7 +109,7 @@ Then configure four secrets in the GitHub repo (Settings → Secrets and variabl
 | Secret | Description |
 |---|---|
 | `AWS_ROLE_ARN` | IAM role ARN that the runner assumes via AWS OIDC |
-| `TELEPORT_PROXY` | Teleport cluster hostname (e.g., `presales.teleportdemo.com`) |
+| `TELEPORT_PROXY` | Teleport cluster hostname (e.g., `presales.acme.example.com`) |
 | `TF_STATE_BUCKET` | S3 bucket name for Terraform state (enables scheduled teardown) |
 | `SLACK_WEBHOOK_URL` | Optional — posts teardown summary to Slack |
 

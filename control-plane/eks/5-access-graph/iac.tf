@@ -1,4 +1,4 @@
-# Ported from gravitational/teleport examples/identity-activity-center (2026-07).
+# Ported from the upstream Teleport repo, examples/identity-activity-center (2026-07).
 # Local edits: dropped provider + duplicate caller_identity, region var, bucket
 # names suffixed with account id for global uniqueness, yaml output removed.
 

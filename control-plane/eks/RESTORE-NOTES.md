@@ -1,4 +1,4 @@
-# presales.teleportdemo.com — state restore notes (2026-07-08)
+# presales.acme.example.com — state restore notes (2026-07-08)
 
 Local Terraform state for all layers was destroyed on 2026-07-07 and rebuilt
 via `terraform import` against the live cluster on branch `restore/eks-state`.
@@ -9,7 +9,7 @@ Layers 1–4 are import-clean (no replacements/destroys in plan); layer
 
 ```bash
 # all layers
-export TF_VAR_user=dlg@goteleport.com
+export TF_VAR_user=sam@example.com
 export TF_VAR_region=us-east-2
 export TF_VAR_env=dev            # NOT the tf default (prod) — live tags are env=dev
 
@@ -17,8 +17,8 @@ export TF_VAR_env=dev            # NOT the tf default (prod) — live tags are e
 export TF_VAR_name=presales TF_VAR_ver_cluster=1.35
 
 # 2-teleport
-export TF_VAR_proxy_address=presales.teleportdemo.com
-export TF_VAR_domain_name=teleportdemo.com
+export TF_VAR_proxy_address=presales.acme.example.com
+export TF_VAR_domain_name=acme.example.com
 export TF_VAR_teleport_version=18.10.3       # cluster-advertised; check webapi/ping
 export TF_VAR_access_graph_enabled=true      # TAG deployed 2026-07-09 (layer 5)
 
@@ -51,7 +51,7 @@ export TF_VAR_plugin_chart_version=18.7.1    # PIN — tf default "" means lates
 #   kubectl get secret teleport-access-graph-postgres -n teleport-access-graph -o jsonpath='{.data.uri}' | base64 -d
 
 # 5-access-graph also requires (added after these notes were first written):
-export TF_VAR_teleport_host_ca="$(curl -s 'https://presales.teleportdemo.com/webapi/auth/export?type=tls-host')"
+export TF_VAR_teleport_host_ca="$(curl -s 'https://presales.acme.example.com/webapi/auth/export?type=tls-host')"
 
 # 5-access-graph — TAG uses PASSWORDLESS RDS IAM auth (2026-07-09)
 # TAG assumes IRSA role teleport-access-graph-rds-dev and connects to RDS with

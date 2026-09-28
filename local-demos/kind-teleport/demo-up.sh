@@ -3,7 +3,7 @@
 # kube_service, for on-the-spot K8s access demos with no cloud dependency.
 #
 # Required env vars:
-#   TELEPORT_PROXY_ADDR   e.g. presales.teleportdemo.com:443
+#   TELEPORT_PROXY_ADDR   e.g. presales.acme.example.com:443
 #   TELEPORT_JOIN_TOKEN   from: tctl tokens add --type=kube --format=text
 #
 # Usage: ./demo-up.sh
@@ -11,7 +11,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLUSTER_NAME="${CLUSTER_NAME:-teleport-demo}"
-PROXY_ADDR="${TELEPORT_PROXY_ADDR:?Set TELEPORT_PROXY_ADDR, e.g. presales.teleportdemo.com:443}"
+PROXY_ADDR="${TELEPORT_PROXY_ADDR:?Set TELEPORT_PROXY_ADDR, e.g. presales.acme.example.com:443}"
 JOIN_TOKEN="${TELEPORT_JOIN_TOKEN:?Set TELEPORT_JOIN_TOKEN — create one with: tctl tokens add --type=kube --format=text}"
 
 echo "==> Creating kind cluster '$CLUSTER_NAME' (1 control-plane + 2 workers)"

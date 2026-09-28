@@ -35,7 +35,7 @@ terraform apply
 ```bash
 cd ../2-teleport
 export TF_VAR_region="us-east-2"
-export TF_VAR_proxy_address="presales.teleportdemo.com"
+export TF_VAR_proxy_address="presales.acme.example.com"
 export TF_VAR_user="you@example.com"
 export TF_VAR_teleport_version="18.10.0"    # cluster version; check webapi/ping
 export TF_VAR_env="dev"                      # live presales value
@@ -50,7 +50,7 @@ terraform apply
 ```bash
 cd ../3-rbac
 export TF_VAR_region="us-east-2"
-export TF_VAR_proxy_address="presales.teleportdemo.com"
+export TF_VAR_proxy_address="presales.acme.example.com"
 export TF_VAR_okta_metadata_url="https://your-okta.okta.com/app/.../metadata"
 export TF_VAR_dev_team="dev"
 export TF_VAR_prod_team="platform"
