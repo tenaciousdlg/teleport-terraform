@@ -1,10 +1,17 @@
 variable "db_type" {
-  description = "Database engine. Only postgres and mysql are supported on LXC -- Cassandra is a JVM and would be the largest single consumer on the hypervisor, for the engine demoed least."
-  type        = string
+  description = "Database engine on LXC: postgres, mysql or mongodb. NOT cassandra."
+
+  # MONGODB ADDED 2026-09-28. The old text said "only postgres and mysql", but
+  # the REASON given was specifically about Cassandra being a JVM and the
+  # largest single consumer on the hypervisor for the engine demoed least.
+  # That reason does not extend to MongoDB, which is a modest C++ daemon, so it
+  # was exclusion by wording rather than by argument. Cassandra remains out for
+  # the reason actually stated.
   validation {
-    condition     = contains(["postgres", "mysql"], var.db_type)
-    error_message = "db_type must be postgres or mysql. Use modules/self-database (EC2) for cassandra or mongodb."
+    condition     = contains(["postgres", "mysql", "mongodb"], var.db_type)
+    error_message = "db_type must be postgres, mysql or mongodb. Cassandra is deliberately unsupported on LXC: it is a JVM and would be the largest single consumer on the hypervisor, for the engine demoed least."
   }
+  type = string
 }
 
 variable "db_hostname" {

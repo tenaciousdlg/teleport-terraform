@@ -34,7 +34,17 @@ terraform {
 
 locals {
   name = "${var.env}-${var.db_type}"
-  port = var.db_type == "postgres" ? 5432 : 3306
+  # PER-ENGINE, and a MAP rather than a ternary. Adding mongodb to a
+  # two-branch ternary on 2026-09-28 silently registered the MongoDB database
+  # at localhost:3306 — the MySQL port — because anything that was not postgres
+  # fell through to the else. The resource registered cleanly, the apply
+  # reported success, and the route pointed at a port nothing listens on. A map
+  # fails on an unknown engine instead of guessing one.
+  port = {
+    postgres = 5432
+    mysql    = 3306
+    mongodb  = 27017
+  }[var.db_type]
 }
 
 # ---- TLS: private CA, server cert ------------------------------------------

@@ -1628,7 +1628,7 @@ resource "kubectl_manifest" "access_list_homelab" {
           # only way the allowed NAME can depend on the DATABASE. Adding a dev
           # database of another engine needs a matching role, which fails
           # closed.
-          "db-dev-postgres", "db-dev-mysql",
+          "db-dev-postgres", "db-dev-mysql", "db-dev-mongodb",
           # access-request paths, same bundle
           "prod-requester", "prod-reviewer", "dev-reviewer",
         ]
@@ -1724,6 +1724,43 @@ resource "kubectl_manifest" "role_db_dev_postgres" {
         # Matches the other database roles. `off` is correct: these engines use
         # named certificate subjects, nothing auto-provisions a user, and
         # offering one that nothing creates is the defect being fixed.
+        create_db_user_mode     = "off"
+        client_idle_timeout     = "1h"
+        disconnect_expired_cert = true
+        lock                    = "strict"
+      }
+    }
+  })
+}
+
+# MONGODB, added 2026-09-28. This role is THE COST OF ENGINE SCOPING ARRIVING,
+# exactly as recorded when db_names was scoped by engine: "a dev database of
+# another engine now matches no role and gets no access until an engine-scoped
+# role is added for it. That fails closed."
+#
+# It did fail closed. mongodb-dev registered correctly, the agent was healthy,
+# and `tsh db ls` simply did not show it — which reads as a broken registration
+# rather than a missing grant. That is the right direction to fail, and this is
+# the step someone has to remember.
+resource "kubectl_manifest" "role_db_dev_mongodb" {
+  yaml_body = yamlencode({
+    apiVersion = "resources.teleport.dev/v1"
+    kind       = "TeleportRoleV7"
+    metadata = {
+      name        = "db-dev-mongodb"
+      namespace   = data.kubernetes_namespace.teleport_cluster.metadata[0].name
+      description = "IAC: dev MongoDB, real database names only"
+    }
+    spec = {
+      allow = {
+        db_labels = merge(local.db_engine_labels, { engine = ["mongodb"] })
+        db_users  = local.db_engine_users
+        # `demo` is the application database seeded by the provision script.
+        # MongoDB enforces db_names, unlike MySQL, so this is a real control
+        # here rather than only populating the Web UI dropdown.
+        db_names = ["demo"]
+      }
+      options = {
         create_db_user_mode     = "off"
         client_idle_timeout     = "1h"
         disconnect_expired_cert = true
