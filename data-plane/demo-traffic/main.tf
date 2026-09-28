@@ -51,8 +51,21 @@ resource "teleport_role" "demo_traffic" {
       db_names = ["postgres"]
 
       # Apps: grafana and ollama both live behind Teleport already.
+      # `prod`, not `home`. Fixed 2026-09-27: the estate's apps were retagged
+      # from `env: home` to `env: prod` earlier the same day, and this selector
+      # was missed, so the role matched no app at all and the bot's two
+      # application tunnels failed forever with `app "grafana" not found` --
+      # an RBAC miss that reads like a missing resource.
+      #
+      # IT WAS MISSED FOR A STRUCTURAL REASON WORTH KEEPING. The retag was done
+      # carefully, with the dependent roles widened before the flip and
+      # narrowed after. Every role it checked lived in the control-plane
+      # layers. This one lives in a data-plane layer whose state still
+      # described the destroyed cluster, so it was invisible to a search of
+      # what was applied. A label retag's blast radius is every layer that
+      # SELECTS on that label, not every layer that was applied recently.
       app_labels = {
-        "env" = ["home", "dev"]
+        "env" = ["prod", "dev"]
       }
 
       # Kubernetes: a scoped read-only group, never system:masters. Labels are
@@ -102,9 +115,30 @@ variable "traffic_runners" {
   default     = ["macbook", "ct104"]
 }
 
-resource "random_password" "registration_secret" {
-  length  = 48
-  special = false
+# PRE-REGISTERED PUBLIC KEYS, NOT REGISTRATION SECRETS. Converted 2026-09-27.
+#
+# Both runners already held a bound keypair in their tbot storage, so their
+# PUBLIC halves are simply registered here and each bot re-binds with the key
+# it already has. That is the same zero-disruption conversion the event handler
+# had in 4-plugins, and it is the repo default (~/github/CLAUDE.md): a public
+# key is not a secret, so the token is fully described in this file with
+# nothing gitignored, nothing in Vault, and nothing to write to the runner.
+#
+# It also removed work rather than adding it. The alternative, applying the old
+# `registration_secret` form against the new cluster, meant generating a secret
+# into terraform STATE and then copying it onto CT104 at
+# /etc/demo-traffic/secret. Pre-registering skips the secret entirely.
+#
+# Recover either value without changing it by re-running `tbot keypair create`
+# against the matching --storage path WITHOUT --overwrite; it reprints the
+# existing key.
+locals {
+  # macbook: ~/.tbot/demo-traffic
+  # ct104:   /var/lib/demo-traffic/store
+  runner_public_keys = {
+    macbook = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMhJvnN7LOaVLH+53bePwLL6eEi+aeUbqtMEJDXq6Ssx"
+    ct104   = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPSz0EY+STUg93n0cTvVBpjDI8nzCNpqVbjZs+h+X/uq"
+  }
 }
 
 resource "teleport_provision_token" "demo_traffic" {
@@ -121,12 +155,13 @@ resource "teleport_provision_token" "demo_traffic" {
     join_method = "bound_keypair"
     bound_keypair = {
       onboarding = {
-        registration_secret = random_password.registration_secret.result
+        initial_public_key = local.runner_public_keys["macbook"]
       }
       recovery = {
-        # `mode` deliberately unset -- see modules/self-database-lxc. Setting it
-        # to "standard" breaks agent joins; leaving it empty is what the working
-        # agents on this cluster use.
+        # `mode` deliberately unset. The docs state that unset enforces the
+        # same rules as `standard` (recovery limit and join-state both
+        # verified), so this is not a weaker setting, and it avoids relitigating
+        # the agent-vs-bot confusion recorded in modules/self-database-lxc.
         limit = 20
       }
     }
@@ -134,14 +169,8 @@ resource "teleport_provision_token" "demo_traffic" {
 }
 
 # Additional runners beyond the first. The original `demo-traffic` token above
-# stays as-is because it is already bound to the macbook's key -- renaming it
-# would break that binding for no gain.
-resource "random_password" "runner_secret" {
-  for_each = toset([for r in var.traffic_runners : r if r != "macbook"])
-  length   = 48
-  special  = false
-}
-
+# keeps its name because it is the macbook's -- renaming it would rebind for no
+# gain.
 resource "teleport_provision_token" "runner" {
   for_each = toset([for r in var.traffic_runners : r if r != "macbook"])
   version  = "v2"
@@ -154,7 +183,7 @@ resource "teleport_provision_token" "runner" {
     join_method = "bound_keypair"
     bound_keypair = {
       onboarding = {
-        registration_secret = random_password.runner_secret[each.key].result
+        initial_public_key = local.runner_public_keys[each.key]
       }
       recovery = {
         limit = 20
@@ -163,14 +192,16 @@ resource "teleport_provision_token" "runner" {
   }
 }
 
-output "registration_secret" {
-  description = "macbook runner. Write to the path named in the tbot config. Sensitive; never commit."
-  value       = random_password.registration_secret.result
-  sensitive   = true
-}
+# OUTPUTS REMOVED 2026-09-27 with the registration secrets they carried:
+# `registration_secret` and `runner_secrets`. There is no onboarding secret any
+# more, so there is nothing to hand to a runner and nothing sensitive for this
+# layer to emit. Deleting them is most of the point of the conversion: the
+# secrets existed only to be copied onto a host, and each copy was another
+# place the value lived.
+#
+# What replaces them is `runner_public_keys` above, which is checked in.
 
-output "runner_secrets" {
-  description = "Per-runner onboarding secrets, keyed by runner name."
-  value       = { for k, v in random_password.runner_secret : k => v.result }
-  sensitive   = true
+output "runner_public_keys" {
+  description = "Pre-registered public half per runner. Not sensitive -- in the repo on purpose."
+  value       = local.runner_public_keys
 }
