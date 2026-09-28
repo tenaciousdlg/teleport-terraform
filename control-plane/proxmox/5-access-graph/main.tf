@@ -199,8 +199,51 @@ resource "helm_release" "access_graph" {
     # Pinned from a file rather than fetched: if the cluster's host CA is ever
     # rotated this must be refreshed, and a stale value should fail loudly
     # rather than silently trust something new.
+    #
+    # THE DESIGN WORKED EXACTLY AS WRITTEN, AND IT STILL COST A DAY.
+    # REFRESHED 2026-09-27. This file held `O=teleport.chrisdlg.com` dated
+    # Sep 8, the HOST CA OF THE DESTROYED CLUSTER. A cluster rebuild mints a
+    # new host CA, so after the move to teleport.heronwright.com the Access
+    # Graph was pinned to a CA that no longer signs anything, rejected auth's
+    # client certificate, and the Web UI reported "the Access Graph service
+    # cannot be contacted". Auth logged, every five seconds:
+    #     Access graph registration failed ...
+    #     x509: certificate signed by unknown authority,
+    #     rpc error: ... could not find host CA
+    # Both pods were Running 1/1 and the Access Graph's own log was clean
+    # after "Successfully connected to the database", because nothing was
+    # wrong on its side: it was correctly refusing a certificate signed by a
+    # CA it had never been told about.
+    #
+    # NOTE WHAT THE PIN DID AND DID NOT BUY. It refused to trust the new
+    # cluster silently, which is the whole point and is right. What it does
+    # not do is surface staleness at PLAN time, so the failure shows up in the
+    # product UI instead of in a diff. A cluster rebuild must refresh this
+    # file in the same pass that creates the cluster:
+    #
+    #   tctl auth export --type=tls-host > host-ca.pem   # run against the NEW cluster
+    #
+    # See the CA-comparison guard below, which turns "stale pin" from a
+    # runtime symptom into a plan-time one without weakening the pin. It is in
+    # two parts on purpose: a `check` block WARNS on every plan, including a
+    # no-change plan, which is exactly when a stale pin is invisible; and a
+    # `precondition` on this resource FAILS the apply outright. A `check`
+    # alone only warns, and a warning in a long plan is easy to scroll past.
     clusterHostCAs = [file("${path.module}/host-ca.pem")]
   })]
+
+  # HARD STOP, not just a warning. The `check` block below reports a stale pin
+  # on every plan; this refuses to apply one. Both exist because they fire in
+  # different places and a warning alone was not enough to have caught this.
+  lifecycle {
+    precondition {
+      condition = can(regex(
+        replace(data.terraform_remote_state.teleport.outputs.cluster_name, ".", "\\."),
+        data.tls_certificate.pinned_host_ca.certificates[0].subject
+      ))
+      error_message = "host-ca.pem is pinned to a different Teleport cluster than this layer is applying to. A cluster rebuild mints a new host CA. Refresh it against the NEW cluster: tctl auth export --type=tls-host > host-ca.pem"
+    }
+  }
 
   depends_on = [
     kubernetes_stateful_set.postgres,
@@ -230,5 +273,45 @@ resource "kubernetes_config_map" "ag_ca_for_teleport" {
   data = {
     # Self-signed via cert-manager, so the issuing CA is the cert itself.
     "ca.pem" = data.kubernetes_secret.ag_tls.data["ca.crt"] != "" ? data.kubernetes_secret.ag_tls.data["ca.crt"] : data.kubernetes_secret.ag_tls.data["tls.crt"]
+  }
+}
+
+# --- host-CA staleness check ------------------------------------------------
+#
+# WHY THIS EXISTS. `clusterHostCAs` above is pinned to a checked-in PEM, on
+# purpose, so the Access Graph cannot silently start trusting a different
+# Teleport cluster. That property is worth keeping. The cost is that a stale
+# pin is invisible until Teleport tries to register and the Web UI says the
+# service cannot be contacted, which is what happened on 2026-09-27: the file
+# still held the destroyed chrisdlg cluster's host CA, both pods reported
+# Running 1/1, and the only symptom was in the product.
+#
+# This turns that into an apply-time failure WITHOUT weakening the pin. A
+# Teleport host CA is issued with the cluster name as its subject
+# (O=<cluster>, CN=<cluster>), so if the pinned certificate's subject does not
+# name the cluster this layer is being applied to, the pin is for a different
+# cluster and the apply stops with an instruction instead of succeeding into a
+# broken feature.
+#
+# Parsed with the `tls` provider, which is already required here, so this adds
+# no dependency, no SSH and no plan-time command.
+data "tls_certificate" "pinned_host_ca" {
+  content = file("${path.module}/host-ca.pem")
+}
+
+check "host_ca_matches_cluster" {
+  assert {
+    condition = can(regex(
+      replace(data.terraform_remote_state.teleport.outputs.cluster_name, ".", "\\."),
+      data.tls_certificate.pinned_host_ca.certificates[0].subject
+    ))
+    error_message = join("", [
+      "host-ca.pem is pinned to a DIFFERENT Teleport cluster. Pinned subject: '",
+      data.tls_certificate.pinned_host_ca.certificates[0].subject,
+      "', but this layer is applying to cluster '",
+      data.terraform_remote_state.teleport.outputs.cluster_name,
+      "'. A cluster rebuild mints a new host CA. Refresh it against the NEW ",
+      "cluster with: tctl auth export --type=tls-host > host-ca.pem",
+    ])
   }
 }

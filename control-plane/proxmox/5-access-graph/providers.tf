@@ -36,7 +36,28 @@ terraform {
 data "terraform_remote_state" "cluster" {
   backend = "local"
   config = {
-    path = "../1-cluster/terraform.tfstate"
+    # WORKSPACE-AWARE, so a second cluster can be built from this same code
+    # with its own state instead of 34 duplicated files.
+    #
+    # The `default` branch is the ORIGINAL path verbatim, so the existing
+    # chrisdlg state is untouched. A non-default workspace reads the matching
+    # workspace state of 1-cluster, which is where terraform puts it for a
+    # local backend.
+    #
+    # Build the parallel cluster with:
+    #   terraform workspace select -or-create heronwright
+    #   terraform apply -var-file=heronwright.tfvars
+    path = terraform.workspace == "default" ? "../1-cluster/terraform.tfstate" : "../1-cluster/terraform.tfstate.d/${terraform.workspace}/terraform.tfstate"
+  }
+}
+
+# Read the Teleport cluster NAME from 2-teleport, for the host-CA staleness
+# check in main.tf. Nothing else here needs it; it exists so that pinning the
+# wrong cluster's host CA fails at APPLY time rather than in the product UI.
+data "terraform_remote_state" "teleport" {
+  backend = "local"
+  config = {
+    path = terraform.workspace == "default" ? "../2-teleport/terraform.tfstate" : "../2-teleport/terraform.tfstate.d/${terraform.workspace}/terraform.tfstate"
   }
 }
 
