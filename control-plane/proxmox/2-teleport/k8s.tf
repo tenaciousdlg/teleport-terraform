@@ -31,36 +31,29 @@ resource "kubernetes_secret" "license" {
 }
 
 ##################################################################################
-# METRICS EXPOSURE (NodePort) — added 2026-09-27
+# METRICS ACCESS (via the API service proxy) — reworked 2026-09-28
 ##################################################################################
 #
-# Teleport's diagnostic listener is enabled in teleport.tf (diag_addr on both
-# auth and proxy). This makes it reachable from OUTSIDE the cluster, because
-# the collector is Alloy on CT104 and k3s pod IPs are not routable there.
+# WAS TWO NodePorts (30300/30301) SERVING /metrics UNAUTHENTICATED ON THE LAN.
+# That was landed knowingly incomplete on 2026-09-27 with a comment saying so,
+# and the plan was to firewall it. That plan is abandoned in favour of removing
+# the port, for a reason worth recording:
 #
-# NodePort rather than LoadBalancer: klipper would hand a LoadBalancer the
-# container's own IP, which is the same address, and a second LoadBalancer on
-# this single-node cluster competes with the Teleport proxy's. A NodePort is
-# the smaller thing that does the job.
+# **Firewalling this container means enabling the PROXMOX CLUSTER firewall**,
+# which also governs the hypervisor's own input policy. Getting that wrong locks
+# you out of hollowtree, and this container had already crash-looped once that
+# week. Fencing an unauthenticated port by touching the control plane's
+# netfilter is a worse trade than not having the port.
 #
-# THESE PORTS ARE UNAUTHENTICATED AND ARE **NOT** FIREWALLED YET.
-# Stating that plainly because an earlier draft of this comment claimed an
-# nftables restriction that does not exist, which is the same
-# comment-disagrees-with-config defect found in the Grafana JWT drop-in.
+# So the collector now reaches metrics through the KUBERNETES API SERVICE PROXY,
+# which is already TLS-terminated and RBAC-gated on 6443:
 #
-# What is true today: /metrics carries no credentials but does leak cluster
-# shape and activity. Reachable from the Internal VLAN only — the Cloudflare
-# tunnel forwards 443 and nothing else, and IoT is on VLAN 30 behind zone
-# policies, so this is not internet-exposed. That is why it was judged
-# acceptable to land tonight.
+#   /api/v1/namespaces/teleport-cluster/services/<svc>:diag/proxy/metrics
 #
-# What is NOT done: the restriction itself. Loki's precedent is nftables INSIDE
-# the container (`tcp dport 3100 ip saddr <collector> accept; drop`), but this
-# container runs k3s, which owns its own netfilter chains, so the same move
-# here is control-plane surgery rather than a two-line rule. Tracked as work in
-# open-items rather than pretended away here. The Proxmox per-container
-# firewall is the likelier tool, since it applies at the bridge and does not
-# touch k3s's tables.
+# Verified by hand before this was written: auth returns its metric families and
+# proxy returns 232 matching lines through that path. Nothing is exposed to the
+# LAN, the credential is a scoped ServiceAccount token, and no firewall rule is
+# needed anywhere.
 resource "kubernetes_service" "auth_diag" {
   metadata {
     name      = "teleport-auth-diag"
@@ -68,13 +61,13 @@ resource "kubernetes_service" "auth_diag" {
     labels    = { "app.kubernetes.io/name" = "teleport-diag" }
   }
   spec {
-    type     = "NodePort"
+    # ClusterIP, NOT NodePort. Reached only through the API proxy.
+    type     = "ClusterIP"
     selector = { "app.kubernetes.io/component" = "auth", "app.kubernetes.io/name" = "teleport-cluster" }
     port {
       name        = "diag"
       port        = 3000
       target_port = 3000
-      node_port   = 30300
       protocol    = "TCP"
     }
   }
@@ -88,15 +81,78 @@ resource "kubernetes_service" "proxy_diag" {
     labels    = { "app.kubernetes.io/name" = "teleport-diag" }
   }
   spec {
-    type     = "NodePort"
+    type     = "ClusterIP"
     selector = { "app.kubernetes.io/component" = "proxy", "app.kubernetes.io/name" = "teleport-cluster" }
     port {
       name        = "diag"
       port        = 3000
       target_port = 3000
-      node_port   = 30301
       protocol    = "TCP"
     }
   }
   depends_on = [helm_release.teleport_cluster]
+}
+
+# ---- The scraper's identity ---------------------------------------------------
+#
+# Least privilege, and narrow enough to be worth reading: `get` on
+# `services/proxy` for EXACTLY these two service names, in one namespace. It
+# cannot list services, cannot read secrets, cannot reach any other service's
+# proxy. A Role rather than a ClusterRole for the same reason.
+resource "kubernetes_service_account" "metrics_scraper" {
+  metadata {
+    name      = "metrics-scraper"
+    namespace = "teleport-cluster"
+  }
+}
+
+resource "kubernetes_role" "metrics_scraper" {
+  metadata {
+    name      = "metrics-scraper"
+    namespace = "teleport-cluster"
+  }
+  rule {
+    api_groups     = [""]
+    resources      = ["services/proxy"]
+    resource_names = ["teleport-auth-diag:diag", "teleport-proxy-diag:diag"]
+    verbs          = ["get"]
+  }
+}
+
+resource "kubernetes_role_binding" "metrics_scraper" {
+  metadata {
+    name      = "metrics-scraper"
+    namespace = "teleport-cluster"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role.metrics_scraper.metadata[0].name
+  }
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.metrics_scraper.metadata[0].name
+    namespace = "teleport-cluster"
+  }
+}
+
+# A LONG-LIVED token, deliberately. Since Kubernetes 1.24 a ServiceAccount no
+# longer gets one automatically, and the projected-token alternative requires
+# the consumer to run INSIDE the cluster. The collector is on another host, so
+# an explicit Secret is the supported way to give an outside scraper an
+# identity.
+#
+# The token is NOT read into terraform state here. homelab/siem fetches it at
+# delivery time and writes it straight onto the collector, so it exists in the
+# cluster and on that one host and nowhere else.
+resource "kubernetes_secret" "metrics_scraper_token" {
+  metadata {
+    name      = "metrics-scraper-token"
+    namespace = "teleport-cluster"
+    annotations = {
+      "kubernetes.io/service-account.name" = kubernetes_service_account.metrics_scraper.metadata[0].name
+    }
+  }
+  type                           = "kubernetes.io/service-account-token"
+  wait_for_service_account_token = true
 }
