@@ -62,6 +62,10 @@ resource "kubectl_manifest" "token_terraform" {
           # recovery, so this is sized for daily terraform use, not for
           # rebuilds. tfenv skips the re-cert while the identity is fresh
           # precisely to avoid burning these.
+          # 30, the ONE documented exception to the estate's baseline of 20
+          # (2026-09-27). This bot lives on the workstation, which is reset far
+          # more often than any server here, and every `tbot keypair create`
+          # re-run or Mac rebuild burns one. Higher churn, so a higher ceiling.
           limit = 30
           mode  = "standard"
         }

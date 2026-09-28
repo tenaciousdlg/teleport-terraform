@@ -41,7 +41,27 @@ locals {
   # auth_service settings must be nested under an explicit auth_service key.
   # device_trust only reaches the config through this raw merge (the chart has
   # no authentication.deviceTrust value).
-  auth_teleport_config = merge(local.access_graph_auth_config, {
+  # DIAGNOSTIC / METRICS ENDPOINT, added 2026-09-27.
+  #
+  # `diag_addr` is a TOP-LEVEL `teleport:` setting, and teleportConfig merges at
+  # the top level, so it goes here rather than inside auth_service. Teleport
+  # then serves Prometheus metrics on /metrics and a liveness probe on /healthz.
+  #
+  # BOUND TO 0.0.0.0, NOT 127.0.0.1 as the docs' example shows. The example
+  # assumes the scraper is on the same host. Here Teleport runs in k3s on CT107
+  # and the collector is Alloy on CT104, and a pod's loopback is reachable by
+  # nothing outside that pod, so a loopback bind would expose metrics to
+  # precisely no one. The pod network is not routable from CT104 either, which
+  # is why this is paired with a NodePort service in k8s.tf and an nftables
+  # allow limited to CT104 — the same treatment Loki got when it turned out to
+  # be listening unauthenticated on the LAN.
+  diag_config = {
+    teleport = {
+      diag_addr = "0.0.0.0:3000"
+    }
+  }
+
+  auth_teleport_config = merge(local.access_graph_auth_config, local.diag_config, {
     auth_service = {
       authentication = {
         device_trust = { mode = "optional" }
@@ -119,7 +139,7 @@ resource "helm_release" "teleport_cluster" {
         # shows auth.teleportConfig; without this the proxy logs "access graph
         # service is not reachable, returning 404" and Identity Security
         # renders empty while auth is happily importing.
-        teleportConfig = local.access_graph_auth_config
+        teleportConfig = merge(local.access_graph_auth_config, local.diag_config)
       }
       operator = { enabled = true, serviceAccount = { create = true, name = "teleport-cluster-operator" } }
 

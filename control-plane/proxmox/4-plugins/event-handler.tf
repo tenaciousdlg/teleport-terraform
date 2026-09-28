@@ -120,8 +120,22 @@ resource "kubectl_manifest" "token_event_handler" {
           # AGENTS ("bound keypair joining for agents requires use of the new
           # join service"). terraform-bot.tf uses standard successfully too.
           mode = "standard"
-          # Re-joins after a rebuild without minting anything new.
-          limit = 5
+          # BASELINE 20, set 2026-09-27. A recovery is consumed whenever the
+          # client loses its join state, which in practice means the cluster
+          # or this host was rebuilt. The estate rebuilt its cluster TWICE in
+          # nine days during the heronwright migration, and each rebuild costs
+          # every bot one. The previous value of 5 was about two years of
+          # ordinary operation and about two migration-heavy weeks, which is
+          # the wrong shape of number for the thing that carries the audit
+          # trail: it ran down to 4 remaining without anything reporting it.
+          #
+          # Be honest about what this control is. With `initial_public_key`,
+          # an attacker holding the PRIVATE half needs exactly ONE re-bind to
+          # obtain a bot identity, so the limit does not meaningfully bound
+          # key theft. It bounds RUNAWAY re-binding and acts as a tripwire.
+          # That argues for generous-but-finite rather than as-tight-as-
+          # possible. Key custody is the real control.
+          limit = 20
         }
       }
     }

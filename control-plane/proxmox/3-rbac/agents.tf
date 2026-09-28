@@ -124,7 +124,13 @@ resource "teleport_provision_token" "agent" {
         # REQUIRED for static keys -- `tbot keypair create` says so outright:
         # "'insecure' recovery mode must be used". A static key keeps no
         # mutable join state, so join-state verification would fail on every
-        # rejoin. `limit` is ignored in this mode; kept for when these move
+        # rejoin.
+        #
+        # THE LIMIT BELOW IS INERT AND DELIBERATELY LEFT OUT OF THE 2026-09-27
+        # BASELINE OF 20. `insecure` mode ignores `recovery.limit` entirely, so
+        # changing the number here would change nothing while implying a
+        # control that is not being applied. These two are static-key AGENTS,
+        # not bots with persistent storage; the value is kept for when these move
         # back to mutable keys.
         mode  = "insecure"
         limit = 10
