@@ -662,12 +662,42 @@ resource "kubectl_manifest" "role_prod_access" {
           team = [var.prod_team]
         }
         aws_role_arns = ["{{external.aws_role_arns}}"]
+        # GATED ON `mapped`, ADDED 2026-09-28. This was the only role offering
+        # per-user database access whose db_labels carried NO
+        # `teleport.dev/db-access` gate, which made it the prod twin of the
+        # `platform-dev-access` fault Chris hit on 2026-09-27 -- offering a
+        # db_user that nothing creates, where the refusal comes from the ENGINE
+        # (`FATAL: role "dlg" does not exist`) and so reads as "the database is
+        # broken" rather than "this user was never going to work".
+        #
+        # IT WAS LATENT, NOT HARMLESS, AND THAT IS THE WHOLE POINT. Every
+        # database in the estate is `env: dev`, so this role's db_labels match
+        # NOTHING today and the fault could not fire. The estate is being
+        # retagged toward `env: prod`; the first prod database registered would
+        # have armed it. Fixing the instance on platform-dev-access and leaving
+        # the same shape here is exactly the "a gotcha is not a fix" pattern
+        # from the working rules, so the class is closed instead.
+        #
+        # Verified before writing this, not assumed: all three databases carry
+        # `teleport.dev/db-access: mapped` and NONE has an `admin_user`, so
+        # auto user provisioning is impossible estate-wide. `keep` could not
+        # have worked on any of them. Auto-provisioning is covered by
+        # `prod-auto-access`, which is already gated on `db-access: auto`.
+        #
+        # This role is now the prod mirror of `dev-access`: mapped databases,
+        # named certificate subjects, no creation.
         db_labels = {
-          env  = ["prod"]
-          team = [var.prod_team]
+          env                      = ["prod"]
+          team                     = [var.prod_team]
+          "teleport.dev/db-access" = ["mapped"]
         }
-        db_names       = ["{{external.db_names}}", "*"]
-        db_users       = ["{{external.db_users}}", "{{email.local(external.username)}}", "{{email.local(external.email)}}", "reader", "writer"]
+        db_names = ["{{external.db_names}}", "*"]
+        # Per-user templates REMOVED. `{{email.local(external.username)}}`
+        # renders `dlg` and would be offered with nothing able to create it;
+        # `{{email.local(external.email)}}` renders empty because no user on
+        # this cluster carries an `email` trait (re-verified against
+        # `tctl get users` on 2026-09-28, not recalled from the note).
+        db_users       = ["{{external.db_users}}", "reader", "writer"]
         desktop_groups = ["Administrators"]
         impersonate = {
           roles = ["Db"]
@@ -712,8 +742,12 @@ resource "kubectl_manifest" "role_prod_access" {
         windows_desktop_logins = ["{{external.windows_logins}}", "{{email.local(external.username)}}", "Administrator"]
       }
       options = {
-        create_db_user                 = true
-        create_db_user_mode            = "keep"
+        # OFF, changed from `keep` 2026-09-28, together with gating db_labels
+        # on `mapped` above. Read the schema, not this comment, for the enum:
+        # `create_db_user_mode` keep is **2** and off is **1**, and it does NOT
+        # share numbering with `create_host_user_mode` (where keep is 3).
+        create_db_user                 = false
+        create_db_user_mode            = "off"
         create_desktop_user            = false
         create_host_user_mode          = "keep"
         create_host_user_default_shell = "/bin/bash"
@@ -838,11 +872,31 @@ resource "kubectl_manifest" "role_prod_readonly_access" {
           env  = ["prod"]
           team = [var.prod_team]
         }
+        # Gated on `mapped` for the same reason as prod-access above: this
+        # role's db grants were ungated too, and fixing one twin while leaving
+        # the other is how the platform-dev-access fault survived in the first
+        # place.
         db_labels = {
-          env  = ["prod"]
-          team = [var.prod_team]
+          env                      = ["prod"]
+          team                     = [var.prod_team]
+          "teleport.dev/db-access" = ["mapped"]
         }
+        # `*` ALONE MAKES THE WEB UI DROPDOWN LOOK EMPTY. `prepareOptions`
+        # filters `*` out of the options and only sets `hasWildcard`, so the
+        # user sees "Select..." with nothing in it and reads that as broken
+        # access when the field is actually typeable. There is no concrete name
+        # to add here yet because no prod database exists; when one is
+        # registered, grant its real database names as a `db_names` trait.
         db_names = ["*"]
+        # UNVERIFIABLE TODAY, AND SAID SO RATHER THAN QUIETLY KEPT OR QUIETLY
+        # DROPPED. `create_db_user_mode` is off on this role, so every name
+        # here must ALREADY EXIST in the target engine. `reader` does exist in
+        # the dev databases; `reporting` has never been checked against
+        # anything, because there is no prod database to check it against, and
+        # `{{external.readonly_db_user}}` is granted by no access list so it
+        # renders empty. **Confirm `reporting` exists in the engine before the
+        # first prod database is registered**, or it becomes the same phantom:
+        # an offered user the ENGINE refuses, which reads as a broken database.
         db_users = ["reader", "reporting", "{{external.readonly_db_user}}"]
         # Without logins this role matched the prod node but granted no SSH
         # principal — an approved request still ended in access denied.
