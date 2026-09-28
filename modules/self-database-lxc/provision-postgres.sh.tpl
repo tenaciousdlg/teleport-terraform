@@ -93,7 +93,20 @@ ALTER DEFAULT PRIVILEGES FOR ROLE writer IN SCHEMA public GRANT SELECT ON TABLES
 SQL
 
 # ---- Teleport agent ---------------------------------------------------------
-curl -fsSL "https://${proxy_address}/scripts/install.sh" | bash
+# ALLOW A PROXY CHANGE. `teleport-update` refuses to install over an existing
+# agent that is bound to a DIFFERENT proxy:
+#   refusing to install with conflicting proxy addresses, pass
+#   --allow-proxy-conflict to override
+# That guard is right for an accidental re-point and wrong for a deliberate
+# cluster migration, which is exactly what re-running this script with a new
+# ${proxy_address} is. Harmless on a fresh container (no existing install to
+# conflict with) and required on a cutover.
+#
+# Passed via the env var rather than an argv flag because the install script
+# is piped to bash and forwards TELEPORT_* to teleport-update.
+export TELEPORT_ALLOW_PROXY_CONFLICT=1
+curl -fsSL "https://${proxy_address}/scripts/install.sh" | bash || \
+  teleport-update enable --proxy "${proxy_address}:443" --allow-proxy-conflict
 
 install -d -m 700 /etc/teleport
 cat > /etc/teleport/bound-keypair-secret <<'SECRET_EOF'
@@ -142,6 +155,35 @@ proxy_service:
 app_service:
   enabled: "no"
 EOF
+
+# ---- ship logs to the SIEM ------------------------------------------------
+# These two containers were the estate's blind spot: measured 2026-09-27, the
+# syslog stream carried lgm, teleport-k3s, cloudflared, immich and udr7 and
+# NEITHER database. rsyslog was running and healthy in both; nothing had ever
+# told it where to send anything.
+#
+# Matches CT103's 90-siem.conf exactly, including the reason for the shape:
+# RainerScript rather than the legacy $ActionQueue directives, which need a
+# $WorkDirectory to build the disk-assisted queue and SILENTLY DELIVER NOTHING
+# when it is missing. RFC5424 so hostname and severity survive as real fields
+# rather than being parsed out of the message body.
+mkdir -p /var/spool/rsyslog
+cat > /etc/rsyslog.d/90-siem.conf <<'RSYSLOG_EOF'
+# Managed by terraform (modules/self-database-lxc). Hand edits are reverted.
+#
+# Target is a NAME, not an address, so it follows the host. Resolvable because
+# this container's first resolver is the router (var.dns_servers).
+global(workDirectory="/var/spool/rsyslog")
+*.* action(type="omfwd"
+           target="${siem_host}" port="${siem_port}" protocol="tcp"
+           template="RSYSLOG_SyslogProtocol23Format"
+           queue.type="linkedlist"
+           queue.filename="siemfwd"
+           queue.maxdiskspace="64m"
+           queue.saveonshutdown="on"
+           action.resumeRetryCount="-1")
+RSYSLOG_EOF
+systemctl restart rsyslog
 
 systemctl enable teleport
 systemctl restart teleport

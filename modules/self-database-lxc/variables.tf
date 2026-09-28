@@ -66,9 +66,27 @@ variable "gateway" {
 }
 
 variable "dns_servers" {
-  description = "Resolvers for the container"
+  description = <<-EOT
+    Resolvers for the container. THE ROUTER MUST COME FIRST.
+
+    Was ["1.1.1.1", "8.8.8.8"], which meant these containers could not resolve
+    a single LAN name and anything pointing at the estate had to be written as
+    a literal address. That is the failure the estate's no-hardcoded-IPs rule
+    exists to prevent, arriving through the back door of a resolver default.
+
+    A resolver is the one place an address is unavoidable: you cannot resolve
+    a name to find the thing that resolves names. Everything downstream of it
+    then gets to use names -- `siem.localdomain` in the rsyslog forwarder
+    below, for one.
+  EOT
   type        = list(string)
-  default     = ["1.1.1.1", "8.8.8.8"]
+  default     = ["192.168.1.1", "1.1.1.1"]
+}
+
+variable "siem_target" {
+  description = "Host:port for rsyslog forwarding to the SIEM. A NAME, resolved via the router. The A record is terraform-managed in homelab/unifi/dns.tf."
+  type        = string
+  default     = "siem.localdomain:1514"
 }
 
 variable "os_template_file_id" {

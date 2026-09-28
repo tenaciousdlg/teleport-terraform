@@ -237,5 +237,11 @@ locals {
     team             = var.team
     token            = teleport_provision_token.db.metadata.name
     registration_key = random_password.registration_secret.result
+
+    # Split here rather than in the template so a malformed siem_target fails
+    # at plan time instead of producing an rsyslog config that parses and
+    # delivers nowhere.
+    siem_host = split(":", var.siem_target)[0]
+    siem_port = split(":", var.siem_target)[1]
   })
 }
