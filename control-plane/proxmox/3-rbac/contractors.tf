@@ -27,7 +27,7 @@
 # delete-to-convert risk applies.
 #
 # Pre-flight for any plan touching this file:
-#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv teleport
+#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv heronwright
 resource "teleport_role" "contractor_db_readonly" {
   version = "v7"
   metadata = {

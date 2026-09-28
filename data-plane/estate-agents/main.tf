@@ -13,7 +13,7 @@
 # not text, when adopting something already running.
 #
 # NO TELEPORT PROVIDER HERE, and that is worth keeping. This layer is
-# templatefile + null_resource, so it needs no `tfenv teleport` pre-flight and
+# templatefile + null_resource, so it needs no `tfenv` pre-flight and
 # no bot credential to plan or apply. The provision tokens these configs name
 # live in control-plane/proxmox/3-rbac/agents.tf, which does need one.
 #

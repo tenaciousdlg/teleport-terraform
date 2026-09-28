@@ -7,7 +7,7 @@
 # that dials out to the proxy.
 #
 # PRE-FLIGHT, every time -- this layer uses the Teleport provider:
-#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv teleport
+#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv heronwright
 #
 # Never `eval $(tctl terraform env)`: it mints an ephemeral bot, role and token
 # per run, which is three admin actions and three MFA taps.

@@ -28,7 +28,7 @@ Every write takes a backup on the host first, named with the config hash:
 
 `terraform providers` reports only `terraform.io/builtin/terraform`. This layer
 is `templatefile` plus `terraform_data`, so it needs **no Teleport credential
-and no `tfenv teleport` pre-flight** to plan or apply. The provision tokens
+and no `tfenv` pre-flight** to plan or apply. The provision tokens
 these configs name live in `control-plane/proxmox/3-rbac/agents.tf`, which does
 need one.
 

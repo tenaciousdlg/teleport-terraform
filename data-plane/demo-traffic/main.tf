@@ -13,7 +13,7 @@
 # carries bot-demo-traffic, so generated load is trivially separable from real
 # use in any query.
 #
-# PRE-FLIGHT:  source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv teleport
+# PRE-FLIGHT:  source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv heronwright
 #
 # Read-mostly on purpose. This thing runs on a timer; it should not be able to
 # do anything it cannot undo.

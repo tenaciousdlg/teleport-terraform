@@ -23,7 +23,7 @@
 # (teleport_provision_token) and contractors.tf (teleport_role).
 #
 # Pre-flight for any plan touching this file:
-#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv teleport
+#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv heronwright
 
 # ── The role ──────────────────────────────────────────────────────────────────
 resource "teleport_role" "usage_exporter" {

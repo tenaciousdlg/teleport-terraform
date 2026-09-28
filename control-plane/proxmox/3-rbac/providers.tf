@@ -69,7 +69,7 @@ provider "kubectl" {
 # ephemeral bot + role + token on every run, which is three admin actions and
 # three MFA taps. Pre-flight, every time, before plan or apply:
 #
-#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv teleport
+#   source ~/github/teleport-zsh/lib/tfenv.zsh && tfenv heronwright
 #
 # which re-certs the persistent `terraform-local` bot over its bound keypair
 # and exports TF_TELEPORT_ADDR + TF_TELEPORT_IDENTITY_FILE_PATH. The provider
