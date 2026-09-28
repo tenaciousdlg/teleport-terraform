@@ -146,8 +146,17 @@ variable "aws_role_arns_by_access_list" {
   # An empty list renders the template EMPTY rather than erroring, which is
   # the safe direction: a list with no ARNs grants no AWS access.
   #
-  # Populate per list in heronwright.tfvars. The values are plain ARNs, e.g.
-  # `arn:aws:iam::<account>:role/<name>`, and they are not secrets.
+  # THE REAL VALUES LIVE IN THE GITIGNORED heronwright.tfvars, and the tracked
+  # default here is empty on purpose. This repo is PUBLIC and the ARNs carry
+  # org demo AWS ACCOUNT IDs, so they follow the same rule as
+  # `access_list_owner` and the SAML descriptors: mechanism in tracked code,
+  # org-identifying values local only.
+  #
+  # MIGRATED OUT OF OKTA 2026-09-28 on Chris's instruction. They were a SAML
+  # attribute statement on the PRESALES app in ~/github/okta/scim.tf, asserted
+  # per Okta group by a 400-character one-line expression. That statement is
+  # now DELETED, so this trait is the only thing granting them and the same
+  # fact is no longer stored in two systems.
   description = "AWS IAM role ARNs granted as the aws_role_arns trait, keyed by access list name."
   type        = map(list(string))
   default = {
