@@ -55,6 +55,33 @@ resource "teleport_role" "usage_exporter" {
           resources = ["bot", "bot_instance"]
           verbs     = ["read", "list"]
         },
+        # ADDED 2026-09-28 for the bound_keypair recovery-headroom exporter.
+        #
+        # `recovery_count` IS ONLY AVAILABLE FROM TELEPORT, and finding that out
+        # cost a detour worth recording. The obvious cheap route was the
+        # operator CRs, which this estate already reads over the Kubernetes API
+        # with a scoped ServiceAccount. The CRs carry the recovery `limit` and
+        # `mode` — but `recovery_count` came back empty on every one, because it
+        # is RUNTIME state held by Teleport's auth service, not something the
+        # operator reconciles back onto its CR. So the limit is in Kubernetes
+        # and the count is in Teleport, and only the count is the interesting
+        # half.
+        #
+        # Teleport also emits NO METRIC for it: 222 metric names are scraped
+        # from this cluster and none mention keypair or recovery. Checked before
+        # building rather than after.
+        #
+        # This stays read-only and in keeping with the rest of the role, which
+        # is an inventory reader. A bound_keypair token holds no secret — its
+        # `initial_public_key` is a PUBLIC key, which is the entire reason this
+        # estate pre-registers keys instead of using registration secrets — so
+        # listing tokens exposes names, roles and recovery counters, not
+        # credentials. `list` as well as `read` so a new agent's token appears
+        # in the panel with no config change.
+        {
+          resources = ["token"]
+          verbs     = ["read", "list"]
+        },
         {
           resources = ["cluster_auth_preference"]
           verbs     = ["read"]

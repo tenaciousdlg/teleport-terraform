@@ -117,6 +117,29 @@ resource "kubernetes_role" "metrics_scraper" {
     resource_names = ["teleport-auth-diag:diag", "teleport-proxy-diag:diag"]
     verbs          = ["get"]
   }
+
+  # ADDED 2026-09-28, for the bound_keypair recovery-headroom exporter.
+  #
+  # WHY THE KUBERNETES API AND NOT TELEPORT'S. `recovery_count` is runtime
+  # STATUS, not config: it lives at `.status.bound_keypair.recovery_count` on
+  # the operator CR, and Teleport exposes NO metric for it. That is exactly why
+  # reading "3 of 30" required a hand query. The CRs are the operator's own
+  # record of the same tokens, already reachable through the API this
+  # ServiceAccount is set up for, so no second credential and no Teleport role
+  # are needed.
+  #
+  # READ-ONLY, AND NOTHING SENSITIVE IS EXPOSED BY IT. A provision token CR
+  # carries the token name, its roles, the recovery mode/limit/count and
+  # `initial_public_key` — a PUBLIC key, which is the whole reason this estate
+  # pre-registers keys instead of using registration secrets. There is no
+  # secret in a bound_keypair token to leak. `list` is required as well as
+  # `get` because the exporter enumerates every token rather than being told
+  # their names, so a new agent appears in the panel without a config change.
+  rule {
+    api_groups = ["resources.teleport.dev"]
+    resources  = ["teleportprovisiontokens"]
+    verbs      = ["get", "list"]
+  }
 }
 
 resource "kubernetes_role_binding" "metrics_scraper" {
