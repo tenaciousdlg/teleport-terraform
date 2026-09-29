@@ -186,6 +186,6 @@ Note: workflows are only triggerable from the default branch (`main`).
 
 ## Notes
 
-- Data-plane and profile state is kept locally and gitignored (each practitioner manages their own). **The eks control plane is different**: it runs `presales.acme.example.com` and uses a shared **S3 backend** (`presales-teleport-demo-tfstate`, versioned + encrypted + locking) so that live state is never a single local copy — see `control-plane/eks/README.md`.
+- Data-plane and profile state is kept locally and gitignored (each practitioner manages their own). **There is no shared remote backend any more.** The eks control plane was the exception — it ran on a shared S3 backend so that live state was never a single local copy — and it was **decommissioned on 2026-09-28** along with its cluster and that bucket. `control-plane/proxmox` is the control plane now, and it uses local state with per-cluster workspaces.
 - The `application-access-aws-console` template requires `manage_account_a_roles=true` on first deploy in a fresh account to create the IAM target roles. See that template's README for the shared-account ownership pattern.
 - All templates tag resources with `teleport.dev/creator`, `env`, `team`, and `ManagedBy=terraform` for cost attribution and RBAC consistency.
