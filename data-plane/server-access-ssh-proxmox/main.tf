@@ -54,11 +54,22 @@ module "ssh_node" {
 
   # env + team + role, the estate convention measured across the templates.
   # env=dev keeps it matched by platform-dev-access rather than the prod roles.
-  labels = {
-    env  = "dev"
-    team = "platform"
-    role = "server"
-  }
+  #
+  # THE MFA LABEL IS ADDED HERE AND NOWHERE ELSE, and that is forced rather
+  # than chosen. A node's labels come from `ssh_service.labels` in its own
+  # /etc/teleport.yaml, so the agent re-announces them on every heartbeat.
+  # There is no `tctl` path at all: `tctl update` in 18.11 supports exactly one
+  # resource type, `remote_cluster`, and refuses `node` outright. Anything set
+  # out of band would be overwritten by the next heartbeat even if it were
+  # accepted.
+  labels = merge(
+    {
+      env  = "dev"
+      team = "platform"
+      role = "server"
+    },
+    var.require_mfa ? { "teleport.dev/mfa" = "required" } : {},
+  )
 
   # Deliberately small. This host exists to be SSHed into; it serves nothing.
   cores     = 1
