@@ -1687,6 +1687,14 @@ resource "kubectl_manifest" "access_list_homelab" {
           # database of another engine needs a matching role, which fails
           # closed.
           "db-dev-postgres", "db-dev-mysql", "db-dev-mongodb",
+          # PER-SESSION MFA GATE, added 2026-09-28. Grants nothing on its own
+          # today: it matches only resources labelled
+          # `teleport.dev/mfa: required`, and nothing carries that label yet, so
+          # this line changes no access at all. `require_session_mfa` is a
+          # LOGICAL OR across roles, so labelling one resource arms the prompt
+          # for that resource and leaves everything else untouched. Defined in
+          # mfa.tf with the reasoning.
+          teleport_role.mfa_required.metadata.name,
           # access-request paths, same bundle
           "prod-requester", "prod-reviewer", "dev-reviewer",
         ]
