@@ -66,6 +66,27 @@ app_service:
   enabled: false
 %{ endif ~}
 
+%{ if linux_desktop != null ~}
+# Linux desktop access. Teleport starts Xvfb per session and launches the
+# desktop inside it, so this host needs a DE and Xvfb installed, and every
+# login must already exist on the host (the service never creates users).
+linux_desktop_service:
+  enabled: true
+  labels:
+%{ for k, v in labels ~}
+    ${k}: ${v}
+%{ endfor ~}
+%{ if linux_desktop.xsessions_included != "" || linux_desktop.xsessions_excluded != "" ~}
+  xsessions:
+%{ if linux_desktop.xsessions_included != "" ~}
+    included: "${linux_desktop.xsessions_included}"
+%{ endif ~}
+%{ if linux_desktop.xsessions_excluded != "" ~}
+    excluded: "${linux_desktop.xsessions_excluded}"
+%{ endif ~}
+%{ endif ~}
+
+%{ endif ~}
 db_service:
   enabled: false
 kubernetes_service:

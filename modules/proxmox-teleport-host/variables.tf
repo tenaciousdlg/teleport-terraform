@@ -38,7 +38,16 @@ variable "vm_id" {
 }
 
 variable "ip_address" {
-  description = "Static CIDR for the container, e.g. 192.168.1.60/24. Static because the Proxmox bridge hands out no DHCP for these and the router therefore has no name to register — see the DNS note in README."
+  description = <<-EOT
+    "dhcp", or a static CIDR such as 192.168.1.60/24.
+
+    PREFER "dhcp" for new hosts. The earlier claim here, that the bridge hands
+    out no DHCP, was wrong: CT100 and CT101 were already on DHCP on vmbr0 when
+    it was checked on 2026-09-29. A DHCP host gets its name registered by the
+    router, which is the estate rule ("fix the name, not the address"). Static
+    hosts are exactly the set that does NOT resolve, because the router never
+    saw them ask. The gateway comes from DHCP too, so `gateway` is ignored.
+  EOT
   type        = string
 }
 
@@ -158,4 +167,32 @@ variable "mcp_apps" {
     run_as_host_user = string
   }))
   default = []
+}
+
+variable "linux_desktop" {
+  description = <<-EOT
+    Enable the Linux Desktop Service on this host (Teleport 18.10.3+). null,
+    the default, renders no `linux_desktop_service` block at all, so existing
+    callers' configs stay byte-identical and their agents are not restarted.
+
+    The host must also have an X11 desktop environment with a session file in
+    /usr/share/xsessions and Xvfb in PATH. Install them with provision_script.
+    Add "LinuxDesktop" to teleport_roles, or the service cannot register.
+
+    THE SERVICE DOES NOT CREATE HOST USERS. In 18.11.0 the session start calls
+    `hostuser.Lookup(login)` and fails if the user is missing
+    (lib/srv/desktop/x11/xsession.go). For per-person logins, have each person
+    SSH to this host once under a role with create_host_user_mode = keep, then
+    open the desktop as that same login.
+
+    xsessions_included / xsessions_excluded are regexes matched against the
+    session file name without `.desktop`. A filter that matches nothing gives
+    a BLANK SCREEN rather than an error, and names differ by DE: Xfce is
+    `xfce`, while GNOME on Ubuntu ships `ubuntu` and `ubuntu-xorg`.
+  EOT
+  type = object({
+    xsessions_included = optional(string, "")
+    xsessions_excluded = optional(string, "")
+  })
+  default = null
 }

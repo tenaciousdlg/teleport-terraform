@@ -70,7 +70,23 @@ applied; and static keys **cannot rotate**, so never add `rotate_after`.
 - **`template_file_id` reads back empty** after refresh, because the API does
   not report which template a container came from. `ignore_changes` on
   `operating_system` is why a plan does not propose replacing a running host.
-- **These hosts are statically addressed**, so the router never sees a DHCP
-  request and has no name to register — which is why they do not resolve in
-  internal DNS. Static addressing is the cause of the missing DNS, not a
-  workaround for it. Add a record in `homelab/unifi/dns.tf` if a name is wanted.
+- **Prefer `ip_address = "dhcp"` for new hosts.** Static hosts never send the
+  router a DHCP request, so it has no name to register, which is why they do
+  not resolve in internal DNS. Static addressing is the cause of the missing
+  DNS, not a workaround for it. `dev-linux-desktop` (CT113, 2026-09-29) was the
+  first host built with DHCP and resolved by name immediately. The older hosts
+  are still static; add a record in `homelab/unifi/dns.tf` if one needs a name.
+
+## Linux desktop hosts
+
+Set `linux_desktop = {}` and add `"LinuxDesktop"` to `teleport_roles`, then
+install a desktop environment and Xvfb with `provision_script`. Left at its
+`null` default, nothing is rendered, so existing callers' configs are
+byte-identical (proved by planning all four: `No changes`).
+
+The service **never creates host users**: session start calls
+`hostuser.Lookup(login)` and fails if the user is missing
+(`lib/srv/desktop/x11/xsession.go`, 18.11.0). For per-person logins each person
+SSHes to the host once, under a role with `create_host_user_mode = keep`, and
+then opens the desktop as that login. So a desktop host must NOT match any role
+that leaves the mode unset, or the SSH step creates nobody.

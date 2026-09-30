@@ -24,6 +24,7 @@ locals {
     apps            = var.apps
     mcp_apps        = var.mcp_apps
     static_key_path = local.static_key_path
+    linux_desktop   = var.linux_desktop
   })
 
   bootstrap = templatefile("${path.module}/bootstrap.sh.tpl", {
@@ -81,7 +82,8 @@ resource "proxmox_virtual_environment_container" "host" {
     ip_config {
       ipv4 {
         address = var.ip_address
-        gateway = var.gateway
+        # DHCP supplies the gateway. Passing one alongside "dhcp" is rejected.
+        gateway = var.ip_address == "dhcp" ? null : var.gateway
       }
     }
   }
