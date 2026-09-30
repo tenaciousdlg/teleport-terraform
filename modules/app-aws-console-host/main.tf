@@ -73,6 +73,15 @@ resource "teleport_provision_token" "app_host" {
 }
 
 resource "aws_instance" "app_host" {
+  # Demo hosts keep the AMI they were created with — callers pass
+  # data.aws_ami with most_recent, and a new upstream image must not replace
+  # healthy instances on the next apply. Ported from the rev-tech copy of this
+  # module on 2026-09-29, after a plan here proposed exactly that replacement.
+  # To move to a new image deliberately: terraform apply -replace=<this address>.
+  lifecycle {
+    ignore_changes = [ami]
+  }
+
   ami                    = var.ami_id
   instance_type          = var.instance_type
   subnet_id              = var.subnet_id
