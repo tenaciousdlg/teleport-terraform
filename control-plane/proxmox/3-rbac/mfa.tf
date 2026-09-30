@@ -107,6 +107,15 @@ resource "teleport_role" "mfa_required" {
       # Deliberately short. A session that needed a fresh IdP challenge to
       # start should not outlive the reason for it by a working day.
       max_session_ttl = "1h0m0s"
+
+      # KEEP, added 2026-09-29, and its absence was a bug I introduced with
+      # this role. It matches every node labelled `teleport.dev/mfa: required`
+      # and left the mode UNSET, and one matching role with the mode unset
+      # disables host user creation on that node for anyone holding it. So on
+      # dev-ssh only users who already existed there could log in. 3 is keep
+      # in the provider's numbering (`terraform providers schema -json`); 1 is
+      # OFF, not keep.
+      create_host_user_mode = 3
     }
   }
 }

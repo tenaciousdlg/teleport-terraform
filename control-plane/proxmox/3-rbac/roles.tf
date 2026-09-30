@@ -1695,6 +1695,10 @@ resource "kubectl_manifest" "access_list_homelab" {
           # for that resource and leaves everything else untouched. Defined in
           # mfa.tf with the reasoning.
           teleport_role.mfa_required.metadata.name,
+          # LINUX DESKTOP, added 2026-09-29. Per-person logins; each person
+          # SSHes to the desktop host once first so their user exists.
+          # Defined in linux-desktop.tf.
+          teleport_role.linux_desktop_access.metadata.name,
           # access-request paths, same bundle
           "prod-requester", "prod-reviewer", "dev-reviewer",
         ]
