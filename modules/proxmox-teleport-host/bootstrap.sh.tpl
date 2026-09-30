@@ -19,7 +19,19 @@ export PATH="/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 # correct the roles are. That cost a long diagnosis on CT104.
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq curl ca-certificates sudo
+apt-get install -y -qq curl ca-certificates sudo locales
+
+# en_US.UTF-8, because that is what an SSH client on a Mac sends in LANG, and
+# the Debian template ships only C, C.utf8 and POSIX. Without it every login
+# prints a screen of `setlocale: LC_CTYPE: cannot change locale` warnings.
+# Found 2026-09-29 on all five hosts built from this module. Written to
+# /etc/locale.gen and the on-disk archive, so it survives a reboot; the grep
+# makes a re-run a no-op.
+if ! locale -a 2>/dev/null | grep -qx 'en_US.utf8'; then
+  sed -i 's/^# *\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen
+  grep -qx 'en_US.UTF-8 UTF-8' /etc/locale.gen || echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+  locale-gen
+fi
 
 if ! command -v teleport >/dev/null 2>&1; then
   curl -fsSL https://cdn.teleport.dev/install.sh | bash -s "${teleport_version}" enterprise
