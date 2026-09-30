@@ -37,7 +37,13 @@
 # pinned in a var file, these exports stop having any effect and the apply
 # reports success using the stale value.
 
-_idp_die() { printf 'idp-env: %s\n' "$1" >&2; return 1; }
+# RETURN NON-ZERO ON FAILURE, or the `&&` in the usage line above protects
+# nothing. Until 2026-09-29 `_idp_die` returned 1 but the script's last command
+# was `unset`, so sourcing it always exited 0 and `. ./idp-env.sh && terraform
+# plan` planned with the descriptors unset. The status is carried in _idp_rc
+# and returned at the very end.
+_idp_rc=0
+_idp_die() { printf 'idp-env: %s\n' "$1" >&2; _idp_rc=1; }
 
 _idp_ws=$(terraform workspace show 2>/dev/null)
 _idp_okta="${OKTA_DIR:-$HOME/github/okta}"
@@ -58,11 +64,22 @@ elif [ -z "${_idp_prefix:-}" ]; then
 elif [ ! -d "$_idp_okta" ]; then
   _idp_die "okta layer not found at $_idp_okta (override with OKTA_DIR)"
 else
-  _idp_saml=$(terraform -chdir="$_idp_okta" output -raw "${_idp_prefix}_saml_metadata" 2>/dev/null)
-  _idp_mfa=$(terraform -chdir="$_idp_okta" output -raw "${_idp_prefix}_mfa_metadata" 2>/dev/null)
+  # KEEP terraform's stderr and show it. Until 2026-09-29 both reads sent it to
+  # /dev/null, so ANY failure became an empty string and the message below
+  # blamed an unapplied okta layer. The actual failure that day was the
+  # `.terraform` sweep: okta's provider plugin was gone, `terraform output`
+  # said "Required plugins are not installed", and this layer then planned to
+  # DESTROY the live SAML connector until prevent_destroy stopped it.
+  _idp_saml_err=$(mktemp)
+  _idp_mfa_err=$(mktemp)
+  _idp_saml=$(terraform -chdir="$_idp_okta" output -no-color -raw "${_idp_prefix}_saml_metadata" 2>"$_idp_saml_err")
+  _idp_mfa=$(terraform -chdir="$_idp_okta" output -no-color -raw "${_idp_prefix}_mfa_metadata" 2>"$_idp_mfa_err")
 
   if [ -z "${_idp_saml:-}" ]; then
-    _idp_die "okta output ${_idp_prefix}_saml_metadata is empty — has the okta layer been applied?"
+    _idp_die "okta output ${_idp_prefix}_saml_metadata is empty. terraform said:
+$(sed 's/^/    /' "$_idp_saml_err" | head -8)
+  If that reads 'Required plugins are not installed', the layer IS applied and
+  only needs: terraform -chdir=$_idp_okta init -input=false"
   else
     export TF_VAR_saml_entity_descriptor="$_idp_saml"
     printf 'idp-env: [%s] TF_VAR_saml_entity_descriptor from %s_saml_metadata (%s bytes)\n' \
@@ -79,9 +96,19 @@ else
     else
       printf 'idp-env: [%s] NO %s_mfa_metadata output — the connector will be planned WITHOUT an mfa block.\n' \
         "$_idp_ws" "$_idp_prefix" >&2
+      if [ -s "$_idp_mfa_err" ]; then
+        printf 'idp-env: terraform said:\n' >&2
+        sed 's/^/    /' "$_idp_mfa_err" | head -8 >&2
+      fi
       printf 'idp-env: if this cluster is supposed to have SSO MFA, STOP and check the okta layer before applying.\n' >&2
     fi
   fi
 fi
 
-unset _idp_die _idp_ws _idp_okta _idp_prefix _idp_saml _idp_mfa
+[ -n "${_idp_saml_err:-}" ] && rm -f "$_idp_saml_err"
+[ -n "${_idp_mfa_err:-}" ] && rm -f "$_idp_mfa_err"
+unset -f _idp_die
+unset _idp_ws _idp_okta _idp_prefix _idp_saml _idp_mfa _idp_saml_err _idp_mfa_err
+# eval expands $_idp_rc before the unset runs, so the status survives the
+# cleanup. `return` from a sourced file works in both bash and zsh.
+eval "unset _idp_rc; return $_idp_rc"
