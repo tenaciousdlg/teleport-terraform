@@ -5,9 +5,12 @@ variable "proxy_address" {
     THIS IS THE CUTOVER SWITCH. Changing it here rewrites and restarts both
     agents on the next apply. It does NOT clear their data_dirs, which still
     hold certs from the old cluster's CA — see the README.
+
+    NO DEFAULT, deliberately. It defaulted to teleport.chrisdlg.com after that
+    cluster was destroyed, so a plain apply would have repointed both agents at
+    a dead cluster (caught 2026-10-13). Pass -var-file=heronwright.tfvars.
   EOT
   type        = string
-  default     = "teleport.chrisdlg.com"
 }
 
 variable "proxmox_ssh" {
