@@ -8,6 +8,23 @@
 #   - k8s/helm/kubectl auth with the k3s admin client cert/key + CA (not exec)
 
 terraform {
+  # State in the estate's R2 bucket (cloudflare-infra/r2-tfstate.tf), under
+  # env:/<workspace>/<key> for the heronwright workspace. The account endpoint
+  # and the key live in the `r2-tfstate` AWS profile, so nothing
+  # account-specific is in this public repo.
+  backend "s3" {
+    bucket                      = "tfstate"
+    key                         = "teleport-terraform/control-plane/proxmox/5-access-graph/terraform.tfstate"
+    region                      = "auto"
+    profile                     = "r2-tfstate"
+    use_lockfile                = true
+    use_path_style              = true
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
+  }
   required_providers {
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -34,20 +51,23 @@ terraform {
 
 # Read k3s cluster info from the 1-cluster local state (NO MANUAL COORDINATION).
 data "terraform_remote_state" "cluster" {
-  backend = "local"
+  # 1-cluster's outputs, read from the estate's R2 bucket in the SAME workspace
+  # as this layer (env:/<workspace>/<key>), so a second cluster built from
+  # this code in its own workspace reads its own 1-cluster state. Read from
+  # ../1-cluster/terraform.tfstate.d until the 2026-10-13 move to R2.
+  backend   = "s3"
+  workspace = terraform.workspace
   config = {
-    # WORKSPACE-AWARE, so a second cluster can be built from this same code
-    # with its own state instead of 34 duplicated files.
-    #
-    # The `default` branch is the ORIGINAL path verbatim, so the existing
-    # chrisdlg state is untouched. A non-default workspace reads the matching
-    # workspace state of 1-cluster, which is where terraform puts it for a
-    # local backend.
-    #
-    # Build the parallel cluster with:
-    #   terraform workspace select -or-create heronwright
-    #   terraform apply -var-file=heronwright.tfvars
-    path = terraform.workspace == "default" ? "../1-cluster/terraform.tfstate" : "../1-cluster/terraform.tfstate.d/${terraform.workspace}/terraform.tfstate"
+    bucket                      = "tfstate"
+    key                         = "teleport-terraform/control-plane/proxmox/1-cluster/terraform.tfstate"
+    region                      = "auto"
+    profile                     = "r2-tfstate"
+    use_path_style              = true
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
   }
 }
 
@@ -55,9 +75,23 @@ data "terraform_remote_state" "cluster" {
 # check in main.tf. Nothing else here needs it; it exists so that pinning the
 # wrong cluster's host CA fails at APPLY time rather than in the product UI.
 data "terraform_remote_state" "teleport" {
-  backend = "local"
+  # 2-teleport's outputs, read from the estate's R2 bucket in the SAME workspace
+  # as this layer (env:/<workspace>/<key>), so a second cluster built from
+  # this code in its own workspace reads its own 2-teleport state. Read from
+  # ../2-teleport/terraform.tfstate.d until the 2026-10-13 move to R2.
+  backend   = "s3"
+  workspace = terraform.workspace
   config = {
-    path = terraform.workspace == "default" ? "../2-teleport/terraform.tfstate" : "../2-teleport/terraform.tfstate.d/${terraform.workspace}/terraform.tfstate"
+    bucket                      = "tfstate"
+    key                         = "teleport-terraform/control-plane/proxmox/2-teleport/terraform.tfstate"
+    region                      = "auto"
+    profile                     = "r2-tfstate"
+    use_path_style              = true
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
   }
 }
 
