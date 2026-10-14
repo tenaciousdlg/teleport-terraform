@@ -2,6 +2,25 @@
 
 This template configures a Teleport Cloud tenant using the Teleport Terraform provider. There is no infrastructure layer to provision.
 
+**In this repo it manages the team demo tenant** (moved here 2026-10-13 from a
+root that lived outside any repo). `2-teleport` holds the SAML connector and
+auth preference; `3-rbac` holds that tenant's own roles and Access Lists, not
+the canonical `teleport-rbac` model, which stays the template in rev-tech.
+Before the move both were planned against the live tenant and matched.
+
+- **State:** S3, bucket `dlg-dlgdemo-teleport-terraform-state` (SE AWS
+  account, us-east-2, versioned, SSE-S3, public access blocked), one key per
+  layer, `use_lockfile` locking. AWS credentials come from the shell's
+  `AWS_PROFILE`.
+- **Teleport credentials:** your own tsh session works, with no bot and no
+  MFA prompt for a plan:
+  `TF_TELEPORT_PROFILE_NAME=<tenant> TF_TELEPORT_PROFILE_PATH=~/.tsh`.
+- **Values:** gitignored `dlgdemo.tfvars` in each layer (copy in Vault at
+  `secret/teleport/dlgdemo-tfvars`). Always `-var-file=dlgdemo.tfvars`.
+- **The connector maps `terraform-provider`** for `Everyone` and
+  `security-team`. That was added on the live tenant by hand and is adopted
+  in code; removing it removes the role SSO users run this provider with.
+
 ## Layout
 
 ```
