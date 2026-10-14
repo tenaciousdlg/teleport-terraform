@@ -234,6 +234,13 @@ variable "terraform_bot_public_key" {
   default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpqp8Sg8zH7jca/mZoOvyeTQh/C6VR72c1/KCdlkamK"
 }
 
+variable "local_model_client_public_key" {
+  # A PUBLIC key. Generated on the workstation; see local-models.tf.
+  description = "Pre-registered bound_keypair public key for the workstation's Ollama tunnel bot."
+  type        = string
+  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKH/m+uGRcyGgvXsPIQTAVzyzwg1Afc6w1a7JcSqYFyw"
+}
+
 variable "sysad_agent_public_key" {
   # A PUBLIC key, in the repo as the default for the same reason as the one
   # below. Generated on lgm; see sysad-agent.tf for the command.
