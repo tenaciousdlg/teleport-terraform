@@ -234,6 +234,14 @@ variable "terraform_bot_public_key" {
   default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPpqp8Sg8zH7jca/mZoOvyeTQh/C6VR72c1/KCdlkamK"
 }
 
+variable "sysad_agent_public_key" {
+  # A PUBLIC key, in the repo as the default for the same reason as the one
+  # below. Generated on lgm; see sysad-agent.tf for the command.
+  description = "Pre-registered bound_keypair public key for the sysad agent's tbot on lgm."
+  type        = string
+  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPTu+KBRMaTAn2OTJHepCefNh56uQppx89T3tbOvpjHF"
+}
+
 variable "usage_exporter_public_key" {
   # A PUBLIC key, deliberately in the repo as the default. Generated on CT104
   # with `tbot keypair create` (see usage-exporter.tf for the exact command).
