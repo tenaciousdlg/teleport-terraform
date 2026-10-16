@@ -238,7 +238,7 @@ variable "local_model_client_public_key" {
   # A PUBLIC key. Generated on the workstation; see local-models.tf.
   description = "Pre-registered bound_keypair public key for the workstation's Ollama tunnel bot."
   type        = string
-  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKH/m+uGRcyGgvXsPIQTAVzyzwg1Afc6w1a7JcSqYFyw"
+  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBCPzQrENC3PQ51Sl+lJ4nwpKoiLEur6E0NnQxsJLQGM"
 }
 
 variable "sysad_agent_public_key" {
