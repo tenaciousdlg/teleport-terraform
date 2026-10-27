@@ -75,8 +75,13 @@ resource "teleport_provision_token" "local_model_client" {
       }
       recovery = {
         # `standard`: agent-generated key with join state, as usage-exporter.tf.
+        # The limit is measured against status.bound_keypair.recovery_count.
+        # A workstation sleeps past its 1h identity, so EVERY wake is a
+        # recovery: 20 were spent 2026-10-16 to 10-20 (~6/day) and the tunnel
+        # died with "no recovery attempts remaining". 1000 is ~5 months at
+        # that rate; when it nears, raise it again (Chris, 2026-10-27).
         mode  = "standard"
-        limit = 20
+        limit = 1000
       }
     }
   }
